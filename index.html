@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Máy tính web khoa học đơn giản — tính toán tức thời, đồng bộ đám mây và tùy chọn theme sáng tối." />
+  <title>Scientific Calculator</title>
+  <link rel="stylesheet" href="style.css?v=2.0.1" />
+  <!-- Script đồng bộ chạy trước khi render để chống flash giao diện (FOUC) -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('calc_theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+      if (theme === 'light') {
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+      }
+    })();
+  </script>
+</head>
+<body>
+
+  <div class="calculator" id="calculator">
+    
+    <!-- Header: Chứa các nút chức năng hệ thống -->
+    <div class="calculator__header">
+      <div class="header-left">
+        <button id="btn-theme" class="header-btn" title="Chuyển chế độ sáng/tối">🌓</button>
+        <div class="angle-control">
+          <span class="angle-badge" id="angle-badge">DEG</span>
+          <button id="btn-angle" class="header-btn" title="Chuyển đổi DEG/RAD">DEG/RAD</button>
+        </div>
+      </div>
+      <div class="header-right">
+        <button id="btn-history" class="header-btn" title="Lịch sử tính toán">📜 Lịch sử</button>
+        <!-- Auth section -->
+        <button id="btn-auth" class="header-btn header-btn--auth">👤 Đăng nhập</button>
+        <div id="user-info" class="user-info hidden">
+          <span class="user-email" id="user-email-display"></span>
+          <button id="btn-logout" class="header-btn header-btn--logout" title="Đăng xuất">Đăng xuất</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Display — SAD Section 5, BRD Section 5 (hai dòng) -->
+    <div class="display">
+      <div class="display__expression" id="display-expression" aria-live="polite"></div>
+      <div class="display__result"     id="display-result"     aria-live="assertive">0</div>
+    </div>
+
+    <!-- Keypad: Bàn phím tích hợp -->
+    <div class="keypad-container">
+      <!-- Tabs cho màn hình mobile -->
+      <div class="keypad-tabs" id="keypad-tabs">
+        <button class="keypad-tab active" data-target="basic">Cơ bản</button>
+        <button class="keypad-tab" data-target="scientific">Khoa học</button>
+      </div>
+
+      <div class="keypads">
+        <!-- Bàn phím khoa học -->
+        <div class="keypad keypad--scientific" id="keypad-scientific">
+          <button class="btn btn--sci" data-action="sci-1op" data-value="sin">sin</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="cos">cos</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="tan">tan</button>
+          <button class="btn btn--sci" data-action="constant" data-value="pi">π</button>
+
+          <button class="btn btn--sci" data-action="sci-1op" data-value="asin">asin</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="acos">acos</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="atan">atan</button>
+          <button class="btn btn--sci" data-action="constant" data-value="e">e</button>
+
+          <button class="btn btn--sci" data-action="sci-1op" data-value="ln">ln</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="log">log</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="abs">|x|</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="percent">%</button>
+
+          <button class="btn btn--sci" data-action="sci-1op" data-value="sqrt">√</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="cbrt">³√</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="sq">x²</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="cube">x³</button>
+
+          <button class="btn btn--sci" data-action="operator" data-value="^">x<sup>y</sup></button>
+          <button class="btn btn--sci" data-action="operator" data-value="ʸ√x">ʸ√x</button>
+          <button class="btn btn--sci btn--wide2" data-action="sci-1op" data-value="factorial">x!</button>
+        </div>
+
+        <!-- Bàn phím cơ bản -->
+        <div class="keypad keypad--basic active" id="keypad-basic">
+          <!-- Row 1: AC, ⌫, ÷ -->
+          <button class="btn btn--fn btn--wide" id="btn-ac"        data-action="ac"       aria-label="Xóa tất cả">AC</button>
+          <button class="btn btn--fn"           id="btn-backspace"  data-action="backspace" aria-label="Xóa ký tự cuối">⌫</button>
+          <button class="btn btn--op"           id="btn-divide"     data-action="operator" data-value="÷" aria-label="Chia">÷</button>
+
+          <!-- Row 2 -->
+          <button class="btn btn--num" data-action="digit" data-value="7" aria-label="7">7</button>
+          <button class="btn btn--num" data-action="digit" data-value="8" aria-label="8">8</button>
+          <button class="btn btn--num" data-action="digit" data-value="9" aria-label="9">9</button>
+          <button class="btn btn--op"  id="btn-multiply"  data-action="operator" data-value="×" aria-label="Nhân">×</button>
+
+          <!-- Row 3 -->
+          <button class="btn btn--num" data-action="digit" data-value="4" aria-label="4">4</button>
+          <button class="btn btn--num" data-action="digit" data-value="5" aria-label="5">5</button>
+          <button class="btn btn--num" data-action="digit" data-value="6" aria-label="6">6</button>
+          <button class="btn btn--op"  id="btn-subtract"  data-action="operator" data-value="−" aria-label="Trừ">−</button>
+
+          <!-- Row 4 -->
+          <button class="btn btn--num" data-action="digit" data-value="1" aria-label="1">1</button>
+          <button class="btn btn--num" data-action="digit" data-value="2" aria-label="2">2</button>
+          <button class="btn btn--num" data-action="digit" data-value="3" aria-label="3">3</button>
+          <button class="btn btn--op"  id="btn-add"       data-action="operator" data-value="+" aria-label="Cộng">+</button>
+
+          <!-- Row 5: 0 (wide), ., = -->
+          <button class="btn btn--num btn--wide btn--zero" id="btn-zero"    data-action="digit"   data-value="0" aria-label="0">0</button>
+          <button class="btn btn--num"                     id="btn-decimal" data-action="decimal" aria-label="Dấu thập phân">.</button>
+          <button class="btn btn--eq"                      id="btn-equals"  data-action="equals"  aria-label="Bằng">=</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar lịch sử -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar__header">
+      <h3>Lịch sử tính toán</h3>
+      <button id="sidebar-close-btn" class="close-btn" aria-label="Đóng lịch sử">&times;</button>
+    </div>
+    <div class="sidebar__content" id="history-list">
+      <p class="sidebar__empty">Chưa có lịch sử phép tính</p>
+    </div>
+    <div class="sidebar__footer">
+      <button id="clear-history-btn" class="btn-clear-history">Xóa lịch sử</button>
+    </div>
+  </div>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- Modal Đăng nhập & Đăng ký -->
+  <div class="modal" id="auth-modal">
+    <div class="modal__content">
+      <div class="modal__header">
+        <h3 id="modal-title">Đăng nhập</h3>
+        <button id="modal-close-btn" class="close-btn" aria-label="Đóng">&times;</button>
+      </div>
+      <form id="auth-form" class="auth-form" novalidate>
+        <div class="form-group">
+          <label for="auth-email">Email</label>
+          <input type="email" id="auth-email" required placeholder="nhap@email.com">
+          <span class="error-msg" id="email-error"></span>
+        </div>
+        <div class="form-group">
+          <label for="auth-password">Mật khẩu</label>
+          <input type="password" id="auth-password" required placeholder="Tối thiểu 6 ký tự">
+          <span class="error-msg" id="password-error"></span>
+        </div>
+        <div class="form-error" id="form-error-alert"></div>
+        <button type="submit" class="btn-submit" id="auth-submit-btn">Đăng nhập</button>
+      </form>
+      <div class="modal__footer">
+        <p id="modal-toggle-text">Chưa có tài khoản? <a href="#" id="modal-toggle-link">Đăng ký ngay</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Đồng bộ Lịch sử -->
+  <div class="modal" id="sync-modal">
+    <div class="modal__content">
+      <div class="modal__header">
+        <h3>Đồng bộ đám mây</h3>
+      </div>
+      <div class="modal__body">
+        <p>Phát hiện bạn đang có dữ liệu lịch sử lưu trữ cục bộ. Bạn có muốn đồng bộ (đẩy) toàn bộ dữ liệu này lên tài khoản đám mây vừa đăng nhập để tránh mất mát không?</p>
+      </div>
+      <div class="modal__footer modal__footer--row">
+        <button id="sync-cancel-btn" class="btn-secondary">Để sau</button>
+        <button id="sync-confirm-btn" class="btn-primary">Đồng bộ ngay</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-overlay"></div>
+
+  <!-- Nạp script chính dưới dạng ES6 Module -->
+  <script type="module" src="calculator.js"></script>
+</body>
+</html>

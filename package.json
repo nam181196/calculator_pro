@@ -1,0 +1,18 @@
+{
+  "name": "simple-calculator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simple Calculator Web App — test suite",
+  "type": "module",
+  "scripts": {
+    "test":      "vitest run",
+    "test:watch": "vitest",
+    "test:e2e":  "playwright test",
+    "test:all":  "vitest run && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "jsdom":            "^24.1.0",
+    "vitest":           "^1.6.0"
+  }
+}
