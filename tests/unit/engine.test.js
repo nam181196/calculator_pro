@@ -10,7 +10,8 @@ import { describe, it, expect } from 'vitest';
 import { 
   performCalculation, 
   performUnaryCalculation, 
-  formatResult 
+  formatResult,
+  solveForX
 } from '../../js/engine.js';
 
 describe('Engine: performCalculation (2 operands)', () => {
@@ -238,5 +239,28 @@ describe('Engine: formatResult', () => {
   it('TC-FMT05 | Loại bỏ số 0 thừa ở phần thập phân số mũ', () => {
     expect(formatResult(1.5e20)).toBe('1.5e+20');
     expect(formatResult(5.0e15)).toBe('5e+15');
+  });
+});
+
+describe('Engine: solveForX (Newton-Raphson Solver)', () => {
+  it('TC-SLV01 | Giải phương trình bậc nhất (2x - 4 = 0)', () => {
+    expect(solveForX('2x - 4')).toBe('x = 2');
+  });
+
+  it('TC-SLV02 | Giải phương trình bậc hai (x^2 - 9 = 0)', () => {
+    const res = solveForX('x^2 - 9');
+    expect(res === 'x = 3' || res === 'x = -3').toBe(true);
+  });
+
+  it('TC-SLV03 | Giải phương trình lượng giác (sin(x) - 0.5 = 0 ở chế độ DEG)', () => {
+    expect(solveForX('sin(x) - 0.5', 'DEG')).toBe('x = 30');
+  });
+
+  it('TC-SLV04 | Phương trình vô nghiệm thực (x^2 + 9 = 0) -> ném lỗi', () => {
+    expect(() => solveForX('x^2 + 9')).toThrow('Lỗi toán học');
+  });
+
+  it('TC-SLV05 | Biểu thức lỗi cú pháp -> ném lỗi', () => {
+    expect(() => solveForX('x +')).toThrow('Lỗi cú pháp');
   });
 });

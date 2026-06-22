@@ -14,6 +14,15 @@ const elExpression = document.getElementById('display-expression');
 const elResult = document.getElementById('display-result');
 const elAngleBadge = document.getElementById('angle-badge');
 
+// Display Indicators Elements
+const elIndicatorS = document.querySelector('.display__indicator[data-indicator="S"]');
+const elIndicatorA = document.querySelector('.display__indicator[data-indicator="A"]');
+const elIndicatorMath = document.querySelector('.display__indicator[data-indicator="Math"]');
+const elIndicatorD = document.querySelector('.display__indicator[data-indicator="D"]');
+const elIndicatorR = document.querySelector('.display__indicator[data-indicator="R"]');
+const elIndicatorUp = document.querySelector('.display__indicator[data-indicator="up"]');
+const elIndicatorDown = document.querySelector('.display__indicator[data-indicator="down"]');
+
 // Sidebar Elements
 const elSidebar = document.getElementById('sidebar');
 const elSidebarOverlay = document.getElementById('sidebar-overlay');
@@ -45,10 +54,322 @@ const elSyncModal = document.getElementById('sync-modal');
 const elKeypadTabs = document.getElementById('keypad-tabs');
 const elKeypadBasic = document.getElementById('keypad-basic');
 const elKeypadScientific = document.getElementById('keypad-scientific');
+const elKeypadTools = document.getElementById('keypad-tools');
 
 /**
- * Định dạng biểu thức một toán hạng để hiển thị.
+ * Tokenizer for Display Layout Rendering
  */
+function tokenizeDisplay(str) {
+  const tokens = [];
+  let i = 0;
+  while (i < str.length) {
+    const char = str[i];
+    const startIndex = i;
+    if (/\s/.test(char)) {
+      i++;
+      continue;
+    }
+    if (char === '⬚') {
+      tokens.push({ type: 'PLACEHOLDER', value: '⬚', index: startIndex });
+      i++;
+      continue;
+    }
+    if (/\d/.test(char)) {
+      let num = '';
+      while (i < str.length && /[\d\.]/.test(str[i])) {
+        num += str[i];
+        i++;
+      }
+      tokens.push({ type: 'NUMBER', value: num, index: startIndex });
+      continue;
+    }
+    if (str.slice(i).startsWith('d/dx')) {
+      tokens.push({ type: 'FUNCTION', value: 'd/dx', index: startIndex });
+      i += 4;
+      continue;
+    }
+    if (char === 'π') {
+      tokens.push({ type: 'CONSTANT', value: 'pi', index: startIndex });
+      i++;
+      continue;
+    }
+    if (char === '∫') {
+      tokens.push({ type: 'FUNCTION', value: '∫', index: startIndex });
+      i++;
+      continue;
+    }
+    if (/[a-zA-Z]/.test(char)) {
+      let word = '';
+      while (i < str.length && /[a-zA-Z\d]/.test(str[i])) {
+        word += str[i];
+        i++;
+      }
+      const lower = word.toLowerCase();
+      if (['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log', 'abs', 'sqrt', 'cbrt'].includes(lower)) {
+        tokens.push({ type: 'FUNCTION', value: lower, index: startIndex });
+      } else if (lower === 'pi') {
+        tokens.push({ type: 'CONSTANT', value: 'pi', index: startIndex });
+      } else if (lower === 'e') {
+        tokens.push({ type: 'CONSTANT', value: 'e', index: startIndex });
+      } else {
+        tokens.push({ type: 'VARIABLE', value: word, index: startIndex });
+      }
+      continue;
+    }
+    if (str.slice(i).startsWith('ʸ√x')) {
+      tokens.push({ type: 'OPERATOR', value: 'ʸ√x', index: startIndex });
+      i += 3;
+      continue;
+    }
+    if (['(', ')', ',', '+', '−', '-', '×', '*', '÷', '/', '^', '²', '³', '!', '%'].includes(char)) {
+      tokens.push({ type: 'OPERATOR', value: char, index: startIndex });
+      i++;
+      continue;
+    }
+    tokens.push({ type: 'UNKNOWN', value: char, index: startIndex });
+    i++;
+  }
+  return tokens;
+}
+
+/**
+ * Parser for Display Layout Rendering
+ */
+class DisplayParser {
+  constructor(tokens) {
+    this.tokens = tokens;
+    this.pos = 0;
+  }
+  
+  peek() {
+    return this.tokens[this.pos] || null;
+  }
+  
+  consume() {
+    return this.tokens[this.pos++];
+  }
+  
+  isFactorStart(token) {
+    if (!token) return false;
+    return token.type === 'NUMBER' || 
+           token.type === 'VARIABLE' || 
+           token.type === 'CONSTANT' || 
+           token.type === 'FUNCTION' || 
+           token.value === '(';
+  }
+  
+  parse() {
+    return this.parseExpression();
+  }
+  
+  parseExpression() {
+    let node = this.parseTerm();
+    while (this.peek() && (this.peek().value === '+' || this.peek().value === '−' || this.peek().value === '-')) {
+      const opToken = this.consume();
+      const op = opToken.value === '-' ? '−' : opToken.value;
+      const right = this.parseTerm();
+      node = { type: 'binary', op, left: node, right };
+    }
+    return node;
+  }
+  
+  parseTerm() {
+    let node = this.parseFactor();
+    while (this.peek() && (
+      this.peek().value === '×' || 
+      this.peek().value === '÷' || 
+      this.peek().value === '/' || 
+      this.peek().value === '*' ||
+      this.isFactorStart(this.peek())
+    )) {
+      const opToken = this.peek();
+      let op = '×';
+      let isImplicit = true;
+      if (opToken.type === 'OPERATOR' && ['×', '÷', '/', '*'].includes(opToken.value)) {
+        this.consume();
+        op = opToken.value;
+        if (op === '*') op = '×';
+        if (op === '/') op = '÷';
+        isImplicit = false;
+      }
+      const right = this.parseFactor();
+      node = { type: 'binary', op, left: node, right, isImplicit };
+    }
+    return node;
+  }
+  
+  parseFactor() {
+    let node = this.parsePrimary();
+    while (this.peek() && (this.peek().value === '^' || this.peek().value === 'ʸ√x' || this.peek().value === '²' || this.peek().value === '³' || this.peek().value === '!' || this.peek().value === '%')) {
+      const opToken = this.consume();
+      const op = opToken.value;
+      if (op === '^' || op === 'ʸ√x') {
+        const right = this.parsePrimary();
+        node = { type: 'binary', op, left: node, right };
+      } else {
+        node = { type: 'unary_post', op, left: node };
+      }
+    }
+    return node;
+  }
+  
+  parsePrimary() {
+    const token = this.peek();
+    if (!token) {
+      return { type: 'placeholder', index: -1 };
+    }
+    
+    if (token.type === 'PLACEHOLDER') {
+      this.consume();
+      return { type: 'placeholder', index: token.index };
+    }
+    
+    if (token.value === '-' || token.value === '−') {
+      this.consume();
+      const next = this.parsePrimary();
+      return { type: 'unary_pre', op: '−', value: next };
+    }
+    
+    if (token.type === 'NUMBER') {
+      this.consume();
+      return { type: 'number', value: token.value };
+    }
+    if (token.type === 'VARIABLE') {
+      this.consume();
+      return { type: 'variable', value: token.value };
+    }
+    if (token.type === 'CONSTANT') {
+      this.consume();
+      return { type: 'constant', value: token.value };
+    }
+    
+    if (token.type === 'FUNCTION') {
+      const name = this.consume().value;
+      if (this.peek() && this.peek().value === '(') {
+        this.consume(); // '('
+        const args = [];
+        if (this.peek() && this.peek().value !== ')') {
+          args.push(this.parseExpression());
+          while (this.peek() && this.peek().value === ',') {
+            this.consume(); // ','
+            args.push(this.parseExpression());
+          }
+        }
+        if (this.peek() && this.peek().value === ')') {
+          this.consume(); // ')'
+        }
+        return { type: 'function', name, args };
+      } else {
+        return { type: 'function', name, args: [] };
+      }
+    }
+    
+    if (token.value === '(') {
+      this.consume(); // '('
+      const inner = this.parseExpression();
+      if (this.peek() && this.peek().value === ')') {
+        this.consume(); // ')'
+      }
+      return { type: 'paren', value: inner };
+    }
+    
+    this.consume();
+    return { type: 'unknown', value: token.value };
+  }
+}
+
+/**
+ * Render AST to styled HTML
+ */
+function renderASTToHTML(node, cursorIndex) {
+  if (!node) return '';
+  switch (node.type) {
+    case 'number':
+      return node.value;
+    case 'variable':
+      return node.value;
+    case 'constant':
+      return node.value === 'pi' ? 'π' : node.value;
+    case 'placeholder':
+      const hasCursor = (node.index !== undefined && node.index !== -1 && node.index === cursorIndex);
+      const cursorClass = hasCursor ? ' has-cursor' : '';
+      const dataIndexAttr = (node.index !== undefined && node.index !== -1) ? ` data-index="${node.index}"` : '';
+      return `<span class="math-placeholder${cursorClass}"${dataIndexAttr}>⬚</span>`;
+    case 'paren':
+      return `(${renderASTToHTML(node.value, cursorIndex)})`;
+    case 'unary_pre':
+      return `−${renderASTToHTML(node.value, cursorIndex)}`;
+    case 'unary_post':
+      return `${renderASTToHTML(node.left, cursorIndex)}${node.op}`;
+    case 'unknown':
+      return node.value;
+    case 'binary':
+      const leftHTML = renderASTToHTML(node.left, cursorIndex);
+      const rightHTML = renderASTToHTML(node.right, cursorIndex);
+      
+      if (node.op === '÷') {
+        let numHTML = leftHTML;
+        let denHTML = rightHTML;
+        if (node.left && node.left.type === 'paren') {
+          numHTML = renderASTToHTML(node.left.value, cursorIndex);
+        }
+        if (node.right && node.right.type === 'paren') {
+          denHTML = renderASTToHTML(node.right.value, cursorIndex);
+        }
+        return `<span class="fraction"><span class="numerator">${numHTML}</span><span class="fraction-op" style="display:none"> ÷ </span><span class="denominator">${denHTML}</span></span>`;
+      }
+      
+      if (node.op === '^') {
+        return `${leftHTML}<span class="pow-op" style="display:none">^</span><sup>${rightHTML}</sup>`;
+      }
+      
+      if (node.op === 'ʸ√x') {
+        return `<sup style="font-size: 0.6em; vertical-align: super; margin-right: -0.2em;">${leftHTML}</sup><span class="pow-op" style="display:none">ʸ√x</span>√${rightHTML}`;
+      }
+      
+      if (node.isImplicit) {
+        return `${leftHTML}${rightHTML}`;
+      }
+      
+      return `${leftHTML} <span class="op">${node.op}</span> ${rightHTML}`;
+      
+    case 'function':
+      if (node.name === 'd/dx') {
+        const f = node.args[0] ? renderASTToHTML(node.args[0], cursorIndex) : '<span class="math-placeholder">⬚</span>';
+        const x0 = node.args[1] ? renderASTToHTML(node.args[1], cursorIndex) : '<span class="math-placeholder">⬚</span>';
+        return `<span class="deriv-expr"><span class="fraction"><span class="numerator">d</span><span class="fraction-op" style="display:none">/</span><span class="denominator">dx</span></span><span class="pow-op" style="display:none">d/dx</span>(${f}, ${x0})</span>`;
+      }
+      
+      if (node.name === '∫') {
+        const f = node.args[0] ? renderASTToHTML(node.args[0], cursorIndex) : '<span class="math-placeholder">⬚</span>';
+        const a = node.args[1] ? renderASTToHTML(node.args[1], cursorIndex) : '<span class="math-placeholder">⬚</span>';
+        const b = node.args[2] ? renderASTToHTML(node.args[2], cursorIndex) : '<span class="math-placeholder">⬚</span>';
+        return `<span class="integral-expr"><span class="integral-sym">∫</span><span class="limits" data-upper="${b}" data-lower="${a}"></span><span class="pow-op" style="display:none">∫</span><span class="integrand">(${f})</span><span style="display:none">(</span><span style="display:none">, ${a}, ${b})</span></span>`;
+      }
+      
+      const argsHTML = node.args.map(arg => renderASTToHTML(arg, cursorIndex)).join(', ');
+      return `<span class="func-name">${node.name}</span>(${argsHTML})`;
+      
+    default:
+      return '';
+  }
+}
+
+export function formatExpressionToHTML(expr, cursorIndex = null) {
+  if (!expr) return '';
+  try {
+    const tokens = tokenizeDisplay(expr);
+    const parser = new DisplayParser(tokens);
+    const ast = parser.parse();
+    return renderASTToHTML(ast, cursorIndex);
+  } catch (e) {
+    return expr
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+}
+
 export function formatUnaryExpression(value, functionName) {
   switch (functionName) {
     case 'sin':
@@ -92,53 +413,99 @@ export function updateDisplay(state) {
     
     // Cỡ chữ động dựa trên độ dài (Responsive font size)
     const len = state.currentInput.length;
-    if (len > 15) elResult.className = 'display__result size-xxl';
+    const hasNewline = state.currentInput.includes('\n');
+    if (hasNewline || len > 15) elResult.className = 'display__result size-xxl';
     else if (len > 11) elResult.className = 'display__result size-xl';
     else if (len > 9) elResult.className = 'display__result size-lg';
     else elResult.className = 'display__result';
   }
 
   // 2. Dòng hiển thị biểu thức (Top display)
+  let displayExpr = '';
   if (state.isError) {
-    if (state.operator && state.firstOperand) {
-      if (state.operator === '\u200B') {
-        elExpression.textContent = state.firstOperand;
-      } else {
-        elExpression.textContent = `${state.firstOperand} ${state.operator} ${state.currentInput}`;
-      }
-    } else {
-      elExpression.textContent = '';
-    }
-  } else if (state._showFullExpr && state.operator) {
-    // Sau khi bấm "=" hoặc hoàn thành hàm 1 toán hạng
-    elExpression.textContent = `${state.firstOperand} ${state.operator} ${state._lastSecond}`;
-  } else if (state.pendingUnary) {
-    // Đang nhập liệu cho hàm một toán hạng
-    if (state.operator && state.firstOperand && state.operator !== '\u200B') {
-      elExpression.textContent = `${state.firstOperand} ${state.operator} ${formatUnaryExpression(state.currentInput, state.pendingUnary)}`;
-    } else {
-      elExpression.textContent = formatUnaryExpression(state.currentInput, state.pendingUnary);
-    }
-  } else if (state.operator && state.firstOperand) {
-    // Đang chờ operand 2
-    elExpression.textContent = `${state.firstOperand} ${state.operator}`;
+    displayExpr = state.expression || '';
+  } else if (state._showFullExpr) {
+    // Sau khi bấm "="
+    displayExpr = state.expression;
   } else {
-    // Chỉ có operand 1
-    elExpression.textContent = '';
+    // Đang nhập biểu thức PEMDAS dài
+    displayExpr = state.expression || '';
+    if (state.pendingUnary && state.waitingForUnaryInput) {
+      displayExpr += formatUnaryExpression(state.currentInput, state.pendingUnary);
+    } else {
+      if (state.waitingForSecond) {
+        // Nếu biểu thức kết thúc bằng toán tử và người dùng chưa gõ toán hạng tiếp theo, hiển thị: state.expression + "0"
+        if (/[\+\−\×\÷\^]\s*$/.test(displayExpr)) {
+          displayExpr += '0';
+        }
+      } else {
+        // FSD §4 Step 3: Ghép nối liền mạch biểu thức
+        if (state.currentInput && state.currentInput !== '0') {
+          displayExpr += state.currentInput;
+        } else if (state.currentInput === '0' && /[\+\−\×\÷\^]\s*$/.test(displayExpr)) {
+          displayExpr += '0';
+        }
+      }
+    }
+  }
+  elExpression.innerHTML = formatExpressionToHTML(displayExpr, state.cursorIndex);
+
+  // 2.1 Co giãn font chữ tự động cho dòng biểu thức (Auto-scaling)
+  // FSD §4 Step 6: Từ 1.8rem giảm dần xuống tối thiểu 1.1rem
+  if (elExpression) {
+    elExpression.style.fontSize = ''; // Reset về mặc định (1.8rem từ CSS)
+    const scrollW = elExpression.scrollWidth;
+    const clientW = elExpression.clientWidth;
+    if (scrollW > clientW && clientW > 0) {
+      const ratio = clientW / scrollW;
+      const newSize = Math.max(1.1, parseFloat((1.8 * ratio).toFixed(2)));
+      elExpression.style.fontSize = `${newSize}rem`;
+    }
   }
 
   // 3. Highlight toán tử đang chọn
-  document.querySelectorAll('.btn--op').forEach(btn => btn.classList.remove('is-active'));
-  if (state.operator && state.waitingForSecond && !state.isError) {
-    const activeBtn = document.querySelector(`.btn--op[data-value="${state.operator}"]`);
-    if (activeBtn) activeBtn.classList.add('is-active');
-  }
+  document.querySelectorAll('.btn--op').forEach(btn => {
+    btn.classList.toggle('is-active', !!(state.operator && btn.getAttribute('data-value') === state.operator));
+  });
 
   // 4. Khóa/mở khóa calculator shell khi lỗi (BR-05)
   elCalculator.classList.toggle('is-error', state.isError);
 
   // 5. Cập nhật Badge góc (DEG/RAD)
   elAngleBadge.textContent = state.angleUnit;
+
+  // 6. Cập nhật chỉ báo trạng thái (Indicators Bar)
+  if (elIndicatorS) {
+    elIndicatorS.classList.toggle('is-active', !!state.waitingForUnaryInput);
+  }
+  if (elIndicatorA) {
+    elIndicatorA.classList.toggle('is-active', false);
+  }
+  if (elIndicatorMath) {
+    elIndicatorMath.classList.add('is-active');
+  }
+  if (elIndicatorD) {
+    elIndicatorD.classList.toggle('is-active', state.angleUnit === 'DEG');
+  }
+  if (elIndicatorR) {
+    elIndicatorR.classList.toggle('is-active', state.angleUnit === 'RAD');
+  }
+
+  let hasHistory = false;
+  try {
+    const localHist = JSON.parse(localStorage.getItem('calc_local_history') || '[]');
+    hasHistory = localHist.length >= 1;
+  } catch (e) {}
+  if (state.cloudHistory && state.cloudHistory.length >= 1) {
+    hasHistory = true;
+  }
+
+  if (elIndicatorUp) {
+    elIndicatorUp.classList.toggle('is-active', hasHistory);
+  }
+  if (elIndicatorDown) {
+    elIndicatorDown.classList.toggle('is-active', hasHistory);
+  }
 }
 
 /**
@@ -288,21 +655,97 @@ export function updateAuthUI(user) {
 /**
  * Khởi tạo hành vi Tab Keypads trên màn hình mobile.
  */
+export function updateKeypadsVisibility() {
+  const isDesktop = window.innerWidth >= 768;
+  const activeTab = document.querySelector('.keypad-tab.active');
+  if (!activeTab) return;
+  
+  const target = activeTab.dataset.target;
+  
+  elKeypadBasic.classList.remove('active');
+  elKeypadScientific.classList.remove('active');
+  elKeypadTools.classList.remove('active');
+  
+  if (isDesktop) {
+    if (target === 'basic' || target === 'scientific') {
+      elKeypadBasic.classList.add('active');
+      elKeypadScientific.classList.add('active');
+    } else if (target === 'tools') {
+      elKeypadTools.classList.add('active');
+    }
+  } else {
+    if (target === 'basic') {
+      elKeypadBasic.classList.add('active');
+    } else if (target === 'scientific') {
+      elKeypadScientific.classList.add('active');
+    } else if (target === 'tools') {
+      elKeypadTools.classList.add('active');
+    }
+  }
+}
+
 export function initKeypadTabs() {
   const tabs = document.querySelectorAll('.keypad-tab');
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      
-      const target = tab.dataset.target;
-      if (target === 'scientific') {
-        elKeypadScientific.classList.add('active');
-        elKeypadBasic.classList.remove('active');
-      } else {
-        elKeypadBasic.classList.add('active');
-        elKeypadScientific.classList.remove('active');
-      }
+      updateKeypadsVisibility();
     });
   });
+  
+  window.addEventListener('resize', updateKeypadsVisibility);
+  updateKeypadsVisibility();
+}
+
+export function toggleSolverInputs(type) {
+  const fields = document.querySelectorAll('.coef-field');
+  fields.forEach(field => {
+    const coef = field.dataset.coef;
+    if (type === 'linear') {
+      if (coef === 'a' || coef === 'b') {
+        field.classList.remove('hidden');
+      } else {
+        field.classList.add('hidden');
+      }
+    } else if (type === 'quadratic') {
+      if (coef === 'a' || coef === 'b' || coef === 'c') {
+        field.classList.remove('hidden');
+      } else {
+        field.classList.add('hidden');
+      }
+    } else if (type === 'system2') {
+      if (coef.startsWith('a') || coef.startsWith('b') || coef.startsWith('c')) {
+        if (coef === 'a' || coef === 'b' || coef === 'c') {
+          field.classList.add('hidden');
+        } else {
+          field.classList.remove('hidden');
+        }
+      }
+    }
+  });
+}
+
+export function displaySolverResult(message, isError = false) {
+  const elResult = document.getElementById('solver-result');
+  if (!elResult) return;
+  
+  elResult.textContent = message;
+  if (isError) {
+    elResult.className = 'tool-result is-error';
+  } else {
+    elResult.className = 'tool-result is-success';
+  }
+}
+
+export function displayIntegralResult(message, isError = false) {
+  const elResult = document.getElementById('integral-result');
+  if (!elResult) return;
+  
+  elResult.textContent = message;
+  if (isError) {
+    elResult.className = 'tool-result is-error';
+  } else {
+    elResult.className = 'tool-result is-success';
+  }
 }

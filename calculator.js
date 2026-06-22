@@ -5,11 +5,9 @@
 
 'use strict';
 
-import './js/api-mock.js';
+console.log("Scientific Calculator v2.1.2 loaded - Non-eager PEMDAS");
 
-import { 
-  formatResult 
-} from './js/engine.js';
+import './js/api-mock.js';
 
 import { 
   updateDisplay, 
@@ -23,7 +21,10 @@ import {
   updateAuthUI, 
   initKeypadTabs,
   toggleSyncModal,
-  formatUnaryExpression
+  formatUnaryExpression,
+  toggleSolverInputs,
+  displaySolverResult,
+  displayIntegralResult
 } from './js/ui.js';
 
 import { 
@@ -41,6 +42,7 @@ import {
 // ============================================================
 const state = {
   currentInput: '0',
+  expression: '',
   firstOperand: '',
   operator: null,
   waitingForSecond: false,
@@ -57,12 +59,14 @@ const state = {
   isConstant: false,
   pendingUnary: null,
   waitingForUnaryInput: false,
-  unaryOperand: ''
+  unaryOperand: '',
+  cursorIndex: null
 };
 
 // Reset state values while keeping angle unit and user intact
 function resetState() {
   state.currentInput = '0';
+  state.expression = '';
   state.firstOperand = '';
   state.operator = null;
   state.waitingForSecond = false;
@@ -75,45 +79,83 @@ function resetState() {
   state.pendingUnary = null;
   state.waitingForUnaryInput = false;
   state.unaryOperand = '';
+  state.cursorIndex = null;
 }
 
 // ============================================================
 // CONTROLLER LOGIC
 // ============================================================
+
+/**
+ * BR-03: Kiểm tra giới hạn độ dài biểu thức (100 ký tự).
+ * Trả về true nếu biểu thức đã đạt hoặc vượt giới hạn.
+ */
+function isExpressionLimitReached() {
+  const totalLen = (state.expression + state.currentInput).replace(/\s/g, '').length;
+  return totalLen >= 100;
+}
+
+function pushCurrentInputToExpression() {
+  if (state.currentInput && state.currentInput !== '0') {
+    state.expression += state.currentInput;
+    state.currentInput = '0';
+  }
+}
+
+function insertAtCursor(char) {
+  if (state.cursorIndex === null) {
+    state.expression += char;
+  } else if (state.cursorIndex >= state.expression.length) {
+    state.expression += char;
+    state.cursorIndex = state.expression.length;
+  } else {
+    const idx = state.cursorIndex;
+    const currentExpr = state.expression;
+    if (currentExpr[idx] === '⬚') {
+      state.expression = currentExpr.slice(0, idx) + char + currentExpr.slice(idx + 1);
+      state.cursorIndex = idx + char.length;
+    } else {
+      state.expression = currentExpr.slice(0, idx) + char + currentExpr.slice(idx);
+      state.cursorIndex = idx + char.length;
+    }
+  }
+  if (state.expression === '') {
+    state.cursorIndex = null;
+  }
+}
+
 function handleDigit(digit) {
   if (state.isError) return;
+  if (!state.shouldResetNext && isExpressionLimitReached()) return;
 
   state._showFullExpr = false;
 
-  // If we just calculated a result or loaded a constant, start fresh
-  if (state.shouldResetNext || state.isConstant) {
+  if (state.shouldResetNext) {
     resetState();
     state.currentInput = (digit === '0') ? '0' : digit;
     updateDisplay(state);
     return;
   }
 
-  // If waiting for second operand, replace '0' with the new digit
-  if (state.waitingForSecond) {
-    state.currentInput = (digit === '0') ? '0' : digit;
-    state.waitingForSecond = false;
+  if (state.cursorIndex !== null) {
+    insertAtCursor(digit);
     updateDisplay(state);
     return;
   }
 
-  // If waiting for unary input, replace '0' with the new digit
-  if (state.waitingForUnaryInput) {
-    state.currentInput = (digit === '0') ? '0' : digit;
-    state.waitingForUnaryInput = false;
-    updateDisplay(state);
-    return;
-  }
-
-  // Max 15 digits limit (excluding decimal points and minus signs)
   const digitCount = state.currentInput.replace(/[^0-9]/g, '').length;
   if (digitCount >= 15) return;
 
-  if (state.currentInput === '0') {
+  if (state.waitingForSecond) {
+    state.currentInput = digit;
+    state.waitingForSecond = false;
+    state.operator = null;
+  } else if (state.isConstant) {
+    pushCurrentInputToExpression();
+    state.currentInput = digit;
+    state.isConstant = false;
+    state.operator = null;
+  } else if (state.currentInput === '0') {
     state.currentInput = digit;
   } else {
     state.currentInput += digit;
@@ -124,34 +166,40 @@ function handleDigit(digit) {
 
 function handleDecimalPoint() {
   if (state.isError) return;
+  if (!state.shouldResetNext && isExpressionLimitReached()) return;
 
   state._showFullExpr = false;
 
-  // If we just calculated a result or loaded a constant, start fresh with "0."
-  if (state.shouldResetNext || state.isConstant) {
+  if (state.shouldResetNext) {
     resetState();
     state.currentInput = '0.';
     updateDisplay(state);
     return;
   }
 
-  // If waiting for second operand, start fresh with "0."
+  if (state.cursorIndex !== null) {
+    insertAtCursor('.');
+    updateDisplay(state);
+    return;
+  }
+
   if (state.waitingForSecond) {
     state.currentInput = '0.';
     state.waitingForSecond = false;
+    state.operator = null;
     updateDisplay(state);
     return;
   }
 
-  // If waiting for unary input, start fresh with "0."
-  if (state.waitingForUnaryInput) {
+  if (state.isConstant) {
+    pushCurrentInputToExpression();
     state.currentInput = '0.';
-    state.waitingForUnaryInput = false;
+    state.isConstant = false;
+    state.operator = null;
     updateDisplay(state);
     return;
   }
 
-  // Limit to one decimal point per operand
   if (state.currentInput.includes('.')) return;
 
   state.currentInput += '.';
@@ -161,53 +209,198 @@ function handleDecimalPoint() {
 function handleConstant(constantName) {
   if (state.isError) return;
 
-  const value = constantName === 'pi' ? Math.PI : Math.E;
-  const formatted = formatResult(value);
+  if (!state.shouldResetNext && isExpressionLimitReached()) return;
 
   if (state.shouldResetNext) {
     resetState();
   }
 
+  if (state.cursorIndex !== null) {
+    const val = constantName === 'pi' ? 'π' : 'e';
+    insertAtCursor(val);
+    updateDisplay(state);
+    return;
+  }
+
   if (state.waitingForSecond) {
     state.waitingForSecond = false;
+    state.operator = null;
   }
 
-  if (state.waitingForUnaryInput) {
-    state.waitingForUnaryInput = false;
-  }
-
-  state.currentInput = formatted;
-  state.isConstant = true; // Block appending digits
+  pushCurrentInputToExpression();
+  state.currentInput = constantName === 'pi' ? '3.1415926536' : '2.7182818285';
+  state.isConstant = true;
   state._showFullExpr = false;
   updateDisplay(state);
+}
+
+function handleParenthesis(paren) {
+  if (state.isError) return;
+  if (!state.shouldResetNext && isExpressionLimitReached()) return;
+  state._showFullExpr = false;
+  
+  if (state.shouldResetNext) {
+    resetState();
+  }
+
+  if (state.cursorIndex !== null) {
+    insertAtCursor(paren);
+    updateDisplay(state);
+    return;
+  }
+
+  if (state.waitingForSecond) {
+    state.waitingForSecond = false;
+    state.operator = null;
+  }
+  
+  pushCurrentInputToExpression();
+  state.expression += paren;
+  updateDisplay(state);
+}
+
+function handleVariable(varName) {
+  if (state.isError) return;
+  if (!state.shouldResetNext && isExpressionLimitReached()) return;
+
+  if (state.shouldResetNext) {
+    resetState();
+  }
+
+  if (state.cursorIndex !== null) {
+    insertAtCursor(varName);
+    updateDisplay(state);
+    return;
+  }
+
+  if (state.waitingForSecond) {
+    state.waitingForSecond = false;
+    state.operator = null;
+  }
+
+  pushCurrentInputToExpression();
+  state.currentInput = varName;
+  state.isConstant = true;
+  state._showFullExpr = false;
+  updateDisplay(state);
+}
+
+function handleFraction() {
+  if (state.isError) return;
+  if (!state.shouldResetNext && isExpressionLimitReached()) return;
+  
+  state._showFullExpr = false;
+  
+  if (state.shouldResetNext) {
+    resetState();
+  }
+  
+  const fractionTemplate = '(⬚)/(⬚)';
+  
+  if (state.cursorIndex === null) {
+    pushCurrentInputToExpression();
+    const startIdx = state.expression.length;
+    state.expression += fractionTemplate;
+    state.cursorIndex = startIdx + 1;
+  } else {
+    const idx = state.cursorIndex;
+    const currentExpr = state.expression;
+    if (currentExpr[idx] === '⬚') {
+      state.expression = currentExpr.slice(0, idx) + fractionTemplate + currentExpr.slice(idx + 1);
+      state.cursorIndex = idx + 1;
+    } else {
+      state.expression = currentExpr.slice(0, idx) + fractionTemplate + currentExpr.slice(idx);
+      state.cursorIndex = idx + 1;
+    }
+  }
+  
+  updateDisplay(state);
+}
+
+function hasFreeVariableX(expr) {
+  const cleanExpr = expr.toLowerCase().replace(/\s+/g, '');
+  let freeXFound = false;
+  let parenDepth = 0;
+  let functionParens = []; 
+  
+  for (let i = 0; i < cleanExpr.length; i++) {
+    const char = cleanExpr[i];
+    
+    if (cleanExpr.substring(i, i + 5) === 'd/dx(') {
+      functionParens.push(parenDepth + 1);
+      i += 4;
+      parenDepth++;
+      continue;
+    }
+    
+    if (char === '∫' && cleanExpr[i + 1] === '(') {
+      functionParens.push(parenDepth + 1);
+      i += 1;
+      parenDepth++;
+      continue;
+    }
+    
+    if (char === '(') {
+      parenDepth++;
+    } else if (char === ')') {
+      if (functionParens.length > 0 && functionParens[functionParens.length - 1] === parenDepth) {
+        functionParens.pop();
+      }
+      parenDepth = Math.max(0, parenDepth - 1);
+    } else if (char === 'x') {
+      if (functionParens.length === 0) {
+        freeXFound = true;
+      }
+    }
+  }
+  return freeXFound;
 }
 
 function handleUnaryCalculation(functionName) {
   if (state.isError) return;
 
-  if (state.shouldResetNext) {
+  if (!state.shouldResetNext && isExpressionLimitReached()) return;
+
+  if (state.waitingForSecond) {
+    state.waitingForSecond = false;
     state.operator = null;
-    state.firstOperand = '';
-    state.shouldResetNext = false;
   }
 
   const isPrefix = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log', 'abs', 'sqrt', 'cbrt'].includes(functionName);
 
   if (isPrefix) {
-    if (state.currentInput === '0' || state.waitingForSecond) {
+    if (state.currentInput !== '0') {
+      const wrapped = formatUnaryExpression(state.currentInput, functionName);
+      if (state.shouldResetNext) {
+        state.expression = wrapped;
+        state.shouldResetNext = false;
+      } else {
+        state.expression += wrapped;
+      }
+      state.currentInput = '0';
+      state.isConstant = false;
+    } else {
+      if (state.shouldResetNext) {
+        state.shouldResetNext = false;
+      }
       state.pendingUnary = functionName;
       state.waitingForUnaryInput = true;
+      state.unaryOperand = '0';
       state.currentInput = '0';
-    } else {
-      state.pendingUnary = functionName;
-      state.waitingForUnaryInput = false;
-      state.isConstant = true;
     }
   } else {
     // Postfix functions
-    state.pendingUnary = functionName;
-    state.waitingForUnaryInput = false;
-    state.isConstant = true;
+    const operand = state.currentInput;
+    const wrapped = formatUnaryExpression(operand, functionName);
+    
+    if (state.shouldResetNext) {
+      state.expression = wrapped;
+      state.shouldResetNext = false;
+    } else {
+      state.expression += wrapped;
+    }
+    state.currentInput = '0';
+    state.isConstant = false;
   }
 
   updateDisplay(state);
@@ -217,347 +410,153 @@ async function handleOperator(op) {
   if (state.isError) return;
 
   state._showFullExpr = false;
-  state.isConstant = false;
 
-  // If there is a pending unary calculation, we must evaluate it first!
-  if (state.pendingUnary) {
-    const operand = state.currentInput;
-    const func = state.pendingUnary;
-    try {
-      const response = await fetch('/engine/calculate-unary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: operand, functionName: func, angleUnit: state.angleUnit })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Lỗi toán học');
-      }
-      state.currentInput = data.result;
-      state.pendingUnary = null;
-    } catch (err) {
-      state.isError = true;
-      state._errorMessage = err.message;
-      state.pendingUnary = null;
+  const isChaining = /[\+\−\×\÷\^\ʸ√x]/.test(state.expression) && !state.waitingForSecond;
+  if (!state.shouldResetNext && !isChaining && isExpressionLimitReached()) return;
 
-      const expr = state.operator && state.firstOperand && state.operator !== '\u200B'
-        ? `${state.firstOperand} ${state.operator} ${formatUnaryExpression(operand, func)}`
-        : formatUnaryExpression(operand, func);
-      
+  if (state.shouldResetNext) {
+    state.expression = state.currentInput + ' ' + op + ' ';
+    state.currentInput = '0';
+    state.shouldResetNext = false;
+    state.isConstant = false;
+    state.waitingForSecond = true;
+    state.operator = op;
+    updateDisplay(state);
+    return;
+  }
+
+  if (state.cursorIndex !== null) {
+    const isAtEnd = state.cursorIndex >= state.expression.length || 
+                    (state.cursorIndex === state.expression.length - 1 && state.expression[state.cursorIndex] === ')');
+    if (isAtEnd) {
+      state.cursorIndex = null;
+      state.expression += ' ' + op + ' ';
+      state.isConstant = false;
+      state.waitingForSecond = true;
+      state.operator = op;
       updateDisplay(state);
-
-      try {
-        const historyResponse = await fetch('/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            expression: expr,
-            result: err.message,
-            status: 'error',
-            userId: state.user ? state.user.uid : null
-          })
-        });
-        if (historyResponse.ok) {
-          refreshHistoryUI();
-        }
-      } catch (historyErr) {
-        console.error("Lỗi khi lưu lịch sử:", historyErr);
-      }
+      return;
+    } else {
+      insertAtCursor(op);
+      updateDisplay(state);
       return;
     }
   }
 
-  // Chain calculations if we already have first operand and operator
-  if (state.shouldResetNext) {
-    state.firstOperand = state.currentInput;
-    state.operator = op;
-    state.waitingForSecond = true;
-    state.shouldResetNext = false;
+  if (state.pendingUnary) {
+    state.expression += formatUnaryExpression(state.currentInput, state.pendingUnary) + ' ' + op + ' ';
+    state.pendingUnary = null;
+    state.waitingForUnaryInput = false;
     state.currentInput = '0';
-    updateDisplay(state);
-    return;
-  }
-
-  if (state.waitingForSecond && state.operator) {
+    state.isConstant = false;
+    state.waitingForSecond = true;
     state.operator = op;
     updateDisplay(state);
     return;
   }
 
-  if (state.operator && state.firstOperand && !state.waitingForSecond) {
-    try {
-      const response = await fetch('/engine/calculate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operand1: state.firstOperand,
-          operator: state.operator,
-          operand2: state.currentInput
-        })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Lỗi toán học');
-      
-      state.firstOperand = data.result;
-      state.currentInput = '0';
-      state.operator = op;
-      state.waitingForSecond = true;
-      updateDisplay(state);
-    } catch (err) {
-      state.isError = true;
-      state._errorMessage = err.message;
-
-      const expr = `${state.firstOperand} ${state.operator} ${state.currentInput}`;
-      updateDisplay(state);
-      
-      try {
-        const historyResponse = await fetch('/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            expression: expr,
-            result: err.message,
-            status: 'error',
-            userId: state.user ? state.user.uid : null
-          })
-        });
-        if (historyResponse.ok) {
-          refreshHistoryUI();
-        }
-      } catch (historyErr) {
-        console.error("Lỗi khi lưu lịch sử:", historyErr);
-      }
-    }
+  if (state.currentInput !== '0' || state.isConstant) {
+    pushCurrentInputToExpression();
+    state.expression += ' ' + op + ' ';
+    state.isConstant = false;
+    state.waitingForSecond = true;
+    state.operator = op;
   } else {
-    if (!state.currentInput) return;
-    state.firstOperand = state.currentInput;
-    state.operator = op;
-    state.waitingForSecond = true;
-    state.currentInput = '0';
-    updateDisplay(state);
+    const match = state.expression.match(/[\+\−\×\÷\^\ʸ√x]\s*$/);
+    if (match) {
+      state.expression = state.expression.replace(/[\+\−\×\÷\^\ʸ√x]\s*$/, op + ' ');
+      state.waitingForSecond = true;
+      state.operator = op;
+    } else {
+      state.expression += '0 ' + op + ' ';
+      state.waitingForSecond = true;
+      state.operator = op;
+    }
   }
+
+  updateDisplay(state);
 }
 
 async function handleEquals() {
-  if (state.isError) return;
+  state.cursorIndex = null;
+  if (state.isError || state.shouldResetNext || state.waitingForSecond) return;
 
-  // Case 1: There is a pending unary calculation
+  let finalExpr = state.expression;
   if (state.pendingUnary) {
-    const operand = state.currentInput;
-    const func = state.pendingUnary;
-    let unarySuccess = false;
-    let unaryFormatted = '';
-    let unaryErrMsg = '';
-
-    // First calculate the unary operation
-    try {
-      const response = await fetch('/engine/calculate-unary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: operand, functionName: func, angleUnit: state.angleUnit })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Lỗi toán học');
-      }
-      unaryFormatted = data.result;
-      unarySuccess = true;
-    } catch (err) {
-      state.isError = true;
-      state._errorMessage = err.message;
-      unaryErrMsg = err.message;
-    }
-
-    state.pendingUnary = null;
-    state.waitingForUnaryInput = false;
-
-    // Build the expression string
-    const formattedUnary = formatUnaryExpression(operand, func);
-
-    if (unarySuccess) {
-      // If there is also a binary operator
-      if (state.operator && state.firstOperand && state.operator !== '\u200B') {
-        const expr = `${state.firstOperand} ${state.operator} ${formattedUnary}`;
-        let success = false;
-        let formatted = '';
-        let errMsg = '';
-
-        try {
-          const response = await fetch('/engine/calculate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              operand1: state.firstOperand,
-              operator: state.operator,
-              operand2: unaryFormatted
-            })
-          });
-          const data = await response.json();
-          if (!response.ok) throw new Error(data.message || 'Lỗi toán học');
-          
-          formatted = data.result;
-          state.currentInput = formatted;
-          state.unaryOperand = operand;
-          state._lastSecond = formattedUnary;
-          state.shouldResetNext = true;
-          state._showFullExpr = true;
-          success = true;
-        } catch (err) {
-          state.isError = true;
-          state._errorMessage = err.message;
-          state.unaryOperand = operand;
-          state._lastSecond = formattedUnary;
-          state._showFullExpr = true;
-          errMsg = err.message;
-        }
-
-        updateDisplay(state);
-
-        try {
-          const historyResponse = await fetch('/history', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              expression: expr,
-              result: success ? formatted : errMsg,
-              status: success ? 'success' : 'error',
-              userId: state.user ? state.user.uid : null
-            })
-          });
-          if (historyResponse.ok) {
-            refreshHistoryUI();
-          }
-        } catch (historyErr) {
-          console.error("Lỗi khi lưu lịch sử:", historyErr);
-        }
-      } else {
-        // Standalone operation
-        state.currentInput = unaryFormatted;
-        state.firstOperand = formattedUnary;
-        state.operator = '\u200B'; // Zero-width space
-        state._lastSecond = '';
-        state.unaryOperand = operand;
-        state.shouldResetNext = true;
-        state.isConstant = true;
-        state._showFullExpr = true;
-
-        updateDisplay(state);
-
-        try {
-          const historyResponse = await fetch('/history', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              expression: formattedUnary,
-              result: unaryFormatted,
-              status: 'success',
-              userId: state.user ? state.user.uid : null
-            })
-          });
-          if (historyResponse.ok) {
-            refreshHistoryUI();
-          }
-        } catch (historyErr) {
-          console.error("Lỗi khi lưu lịch sử:", historyErr);
-        }
-      }
-    } else {
-      // Unary calculation failed
-      const expr = state.operator && state.firstOperand && state.operator !== '\u200B'
-        ? `${state.firstOperand} ${state.operator} ${formattedUnary}`
-        : formattedUnary;
-
-      if (!state.operator || state.operator === '\u200B') {
-        state.firstOperand = formattedUnary;
-        state.operator = '\u200B';
-        state._lastSecond = '';
-      } else {
-        state._lastSecond = formattedUnary;
-      }
-      state.unaryOperand = operand;
-      state._showFullExpr = true;
-
-      updateDisplay(state);
-
-      try {
-        const historyResponse = await fetch('/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            expression: expr,
-            result: unaryErrMsg,
-            status: 'error',
-            userId: state.user ? state.user.uid : null
-          })
-        });
-        if (historyResponse.ok) {
-          refreshHistoryUI();
-        }
-      } catch (historyErr) {
-        console.error("Lỗi khi lưu lịch sử:", historyErr);
-      }
-    }
-    return;
+    finalExpr += formatUnaryExpression(state.currentInput, state.pendingUnary);
+  } else if (!state.expression || state.expression.endsWith(' ')) {
+    finalExpr += state.currentInput;
   }
-
-  // Case 2: Normal calculation without pending unary
-  if (!state.operator || !state.firstOperand || state.waitingForSecond) return;
-  if (state.shouldResetNext) return;
-
-  const secondOperand = state.currentInput;
-  state._lastSecond = secondOperand;
-  state.isConstant = false;
-
-  const expr = `${state.firstOperand} ${state.operator} ${secondOperand}`;
-  let success = false;
-  let formatted = '';
-  let errMsg = '';
+  
+  if (!finalExpr) return;
 
   try {
-    const response = await fetch('/engine/calculate', {
+    const hasX = hasFreeVariableX(finalExpr);
+    const endpoint = hasX ? '/engine/solve-x' : '/engine/calculate';
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operand1: state.firstOperand,
-        operator: state.operator,
-        operand2: secondOperand
-      })
+      body: JSON.stringify({ expression: finalExpr, angleUnit: state.angleUnit })
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Lỗi toán học');
+    if (!response.ok) {
+      throw new Error(data.message || 'Lỗi toán học');
+    }
     
-    formatted = data.result;
-    state.currentInput = formatted;
+    state.expression = finalExpr;
+    state.currentInput = data.result;
     state.shouldResetNext = true;
     state._showFullExpr = true;
-    success = true;
+    state.pendingUnary = null;
+    state.waitingForUnaryInput = false;
+    state.isConstant = false;
+    state.operator = null;
+    updateDisplay(state);
+
+    try {
+      const historyResponse = await fetch('/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expression: finalExpr,
+          result: data.result,
+          status: 'success',
+          userId: state.user ? state.user.uid : null
+        })
+      });
+      if (historyResponse.ok) {
+        refreshHistoryUI();
+      }
+    } catch (historyErr) {
+      console.error("Lỗi khi lưu lịch sử:", historyErr);
+    }
   } catch (err) {
     state.isError = true;
     state._errorMessage = err.message;
-    state._showFullExpr = true;
-    errMsg = err.message;
-  }
+    state.expression = finalExpr;
+    state.pendingUnary = null;
+    state.waitingForUnaryInput = false;
+    state.isConstant = false;
+    state.operator = null;
+    updateDisplay(state);
 
-  // Update UI instantly
-  updateDisplay(state);
-
-  // Save history asynchronously in the background
-  try {
-    const historyResponse = await fetch('/history', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        expression: expr,
-        result: success ? formatted : errMsg,
-        status: success ? 'success' : 'error',
-        userId: state.user ? state.user.uid : null
-      })
-    });
-    if (historyResponse.ok) {
-      refreshHistoryUI();
+    try {
+      const historyResponse = await fetch('/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expression: finalExpr,
+          result: err.message,
+          status: 'error',
+          userId: state.user ? state.user.uid : null
+        })
+      });
+      if (historyResponse.ok) {
+        refreshHistoryUI();
+      }
+    } catch (historyErr) {
+      console.error("Lỗi khi lưu lịch sử:", historyErr);
     }
-  } catch (historyErr) {
-    console.error("Lỗi khi lưu lịch sử:", historyErr);
   }
 }
 
@@ -567,22 +566,40 @@ function handleAllClear() {
 }
 
 function handleBackspace() {
-  if (state.shouldResetNext || state.isError || state.waitingForSecond) return;
+  if (state.isError || state.shouldResetNext || state.waitingForSecond) return;
+  
+  state._showFullExpr = false;
 
-  if (state.pendingUnary) {
-    if (state.currentInput === '0' || state.waitingForUnaryInput) {
+  if (state.cursorIndex !== null) {
+    if (state.cursorIndex > 0) {
+      const idx = state.cursorIndex;
+      const currentExpr = state.expression;
+      let newExpr = currentExpr.slice(0, idx - 1) + currentExpr.slice(idx);
+      let newCursor = idx - 1;
+      
+      if (newCursor > 0 && newExpr[newCursor - 1] === '(' && newExpr[newCursor] === ')') {
+        newExpr = newExpr.slice(0, newCursor) + '⬚' + newExpr.slice(newCursor);
+      }
+      
+      state.expression = newExpr;
+      state.cursorIndex = newCursor;
+      if (state.expression === '') {
+        state.cursorIndex = null;
+      }
+    }
+    updateDisplay(state);
+    return;
+  }
+
+  if (state.waitingForUnaryInput) {
+    if (state.currentInput !== '0' && state.currentInput !== '') {
+      state.currentInput = state.currentInput.slice(0, -1);
+      if (state.currentInput === '' || state.currentInput === '-') {
+        state.currentInput = '0';
+      }
+    } else {
       state.pendingUnary = null;
       state.waitingForUnaryInput = false;
-      state.isConstant = false;
-    } else {
-      if (state.currentInput.length <= 1) {
-        state.currentInput = '0';
-      } else {
-        state.currentInput = state.currentInput.slice(0, -1);
-        if (state.currentInput === '-') {
-          state.currentInput = '0';
-        }
-      }
     }
     updateDisplay(state);
     return;
@@ -595,12 +612,19 @@ function handleBackspace() {
     return;
   }
 
-  if (state.currentInput.length <= 1) {
-    state.currentInput = '0';
-  } else {
+  if (state.currentInput !== '0' && state.currentInput !== '') {
     state.currentInput = state.currentInput.slice(0, -1);
-    if (state.currentInput === '-') {
+    if (state.currentInput === '' || state.currentInput === '-') {
       state.currentInput = '0';
+    }
+  } else {
+    let combined = state.expression;
+    if (combined.length > 0) {
+      if (combined.endsWith(' ')) {
+        state.expression = combined.trim().slice(0, -1).trim();
+      } else {
+        state.expression = combined.slice(0, -1);
+      }
     }
   }
 
@@ -622,9 +646,7 @@ function handleSelectHistoryCard(item) {
     state._errorMessage = '';
   }
   state.currentInput = item.result;
-  state.firstOperand = item.expression;
-  state.operator = '\u200B';
-  state._lastSecond = '';
+  state.expression = item.expression;
   state._showFullExpr = true;
   state.shouldResetNext = true;
   state.isConstant = true;
@@ -931,6 +953,11 @@ document.addEventListener('keydown', function handleKeydown(event) {
   } else if (key === '^') {
     handleOperator('^');
     animateButton('.btn--sci[data-value="^"]');
+  } else if (key === 'x' || key === 'X') {
+    handleVariable('x');
+    animateButton('#btn-var-x');
+  } else if (key === '(' || key === ')') {
+    handleParenthesis(key);
   }
 });
 
@@ -940,6 +967,18 @@ function animateButton(selector) {
   btn.classList.add('key-pressed');
   setTimeout(() => btn.classList.remove('key-pressed'), 120);
 }
+
+// Click on placeholders in the expression
+document.getElementById('display-expression').addEventListener('click', function(event) {
+  const placeholder = event.target.closest('.math-placeholder');
+  if (!placeholder) return;
+  
+  const dataIndex = placeholder.getAttribute('data-index');
+  if (dataIndex !== null) {
+    state.cursorIndex = parseInt(dataIndex, 10);
+    updateDisplay(state);
+  }
+});
 
 // Click Delegation
 document.querySelector('.keypads').addEventListener('click', function(event) {
@@ -962,6 +1001,12 @@ document.querySelector('.keypads').addEventListener('click', function(event) {
     case 'constant':
       handleConstant(value);
       break;
+    case 'variable':
+      handleVariable(value);
+      break;
+    case 'fraction':
+      handleFraction();
+      break;
     case 'sci-1op':
       handleUnaryCalculation(value);
       break;
@@ -976,6 +1021,259 @@ document.querySelector('.keypads').addEventListener('click', function(event) {
       break;
   }
 });
+
+// ============================================================
+// TOOLS EVENT HANDLERS (Solver & Integral)
+// ============================================================
+
+const elSolverType = document.getElementById('solver-type');
+if (elSolverType) {
+  elSolverType.addEventListener('change', (e) => {
+    toggleSolverInputs(e.target.value);
+  });
+  // Initial setup
+  toggleSolverInputs(elSolverType.value);
+}
+
+const elBtnSolve = document.getElementById('btn-solve');
+if (elBtnSolve) {
+  elBtnSolve.addEventListener('click', async () => {
+    const type = document.getElementById('solver-type').value;
+    let coefs = [];
+    
+    if (type === 'linear') {
+      const a = document.getElementById('coef-a').value.trim();
+      const b = document.getElementById('coef-b').value.trim();
+      if (a === '' || b === '') {
+        displaySolverResult("Vui lòng nhập đầy đủ hệ số", true);
+        return;
+      }
+      coefs = [parseFloat(a), parseFloat(b)];
+    } else if (type === 'quadratic') {
+      const a = document.getElementById('coef-a').value.trim();
+      const b = document.getElementById('coef-b').value.trim();
+      const c = document.getElementById('coef-c').value.trim();
+      if (a === '' || b === '' || c === '') {
+        displaySolverResult("Vui lòng nhập đầy đủ hệ số", true);
+        return;
+      }
+      coefs = [parseFloat(a), parseFloat(b), parseFloat(c)];
+    } else if (type === 'system2') {
+      const a1 = document.getElementById('coef-a1').value.trim();
+      const b1 = document.getElementById('coef-b1').value.trim();
+      const c1 = document.getElementById('coef-c1').value.trim();
+      const a2 = document.getElementById('coef-a2').value.trim();
+      const b2 = document.getElementById('coef-b2').value.trim();
+      const c2 = document.getElementById('coef-c2').value.trim();
+      if (a1 === '' || b1 === '' || c1 === '' || a2 === '' || b2 === '' || c2 === '') {
+        displaySolverResult("Vui lòng nhập đầy đủ hệ số", true);
+        return;
+      }
+      coefs = [parseFloat(a1), parseFloat(b1), parseFloat(c1), parseFloat(a2), parseFloat(b2), parseFloat(c2)];
+    }
+    
+    if (coefs.some(isNaN)) {
+      displaySolverResult("Vui lòng nhập hệ số là số hợp lệ", true);
+      return;
+    }
+    
+    let histExpr = '';
+    if (type === 'linear') {
+      const [a, b] = coefs;
+      histExpr = `Giải PT: ${a}x ${b >= 0 ? '+ ' + b : '− ' + Math.abs(b)} = 0`;
+    } else if (type === 'quadratic') {
+      const [a, b, c] = coefs;
+      histExpr = `Giải PT: ${a}x² ${b >= 0 ? '+ ' + b : '− ' + Math.abs(b)}x ${c >= 0 ? '+ ' + c : '− ' + Math.abs(c)} = 0`;
+    } else if (type === 'system2') {
+      const [a1, b1, c1, a2, b2, c2] = coefs;
+      histExpr = `Giải hệ PT: {${a1}x+${b1}y=${c1}, ${a2}x+${b2}y=${c2}}`;
+    }
+
+    try {
+      const response = await fetch('/engine/solve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coefficients: coefs, type })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Lỗi giải phương trình');
+      }
+      
+      const roots = data.roots;
+      let uiMsg = '';
+      let histRes = '';
+      
+      if (type === 'linear') {
+        if (roots[0] === 'Vô nghiệm' || roots[0] === 'Vô số nghiệm') {
+          uiMsg = roots[0];
+          histRes = roots[0];
+        } else {
+          uiMsg = `x = ${roots[0]}`;
+          histRes = `x = ${roots[0]}`;
+        }
+      } else if (type === 'quadratic') {
+        if (roots[0] === 'Vô nghiệm' || roots[0] === 'Vô số nghiệm') {
+          uiMsg = roots[0];
+          histRes = roots[0];
+        } else if (roots.length === 1) {
+          uiMsg = `x = ${roots[0]}`;
+          histRes = `x = ${roots[0]}`;
+        } else {
+          if (roots[0].includes('i')) {
+            uiMsg = `x₁ = ${roots[0]}\nx₂ = ${roots[1]}`;
+            histRes = `x1=${roots[0].replace(/\s+/g, '')}, x2=${roots[1].replace(/\s+/g, '')}`;
+          } else {
+            uiMsg = `x₁ = ${roots[0]}\nx₂ = ${roots[1]}`;
+            histRes = `x₁=${roots[0]}, x₂=${roots[1]}`;
+          }
+        }
+      } else if (type === 'system2') {
+        if (roots[0] === 'Vô nghiệm' || roots[0] === 'Vô số nghiệm') {
+          uiMsg = roots[0];
+          histRes = roots[0];
+        } else {
+          uiMsg = `x = ${roots[0]}\ny = ${roots[1]}`;
+          histRes = `x = ${roots[0]}, y = ${roots[1]}`;
+        }
+      }
+      
+      displaySolverResult(uiMsg, false);
+
+      // Tích hợp hiển thị lên màn hình máy tính chính
+      state.expression = histExpr;
+      state.currentInput = uiMsg;
+      state.shouldResetNext = true;
+      state._showFullExpr = true;
+      state.isError = false;
+      state._errorMessage = '';
+      state.isConstant = true;
+      updateDisplay(state);
+      
+      try {
+        const historyResponse = await fetch('/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expression: histExpr,
+            result: histRes,
+            status: 'success',
+            userId: state.user ? state.user.uid : null
+          })
+        });
+        if (historyResponse.ok) {
+          refreshHistoryUI();
+        }
+      } catch (historyErr) {
+        console.error("Lỗi khi lưu lịch sử:", historyErr);
+      }
+    } catch (err) {
+      displaySolverResult(err.message, true);
+      
+      // Hiển thị lỗi lên màn hình chính
+      state.expression = histExpr;
+      state.isError = true;
+      state._errorMessage = err.message;
+      updateDisplay(state);
+    }
+  });
+}
+
+const elBtnIntegrate = document.getElementById('btn-integrate');
+if (elBtnIntegrate) {
+  elBtnIntegrate.addEventListener('click', async () => {
+    const expr = document.getElementById('integral-expr').value.trim();
+    const a = document.getElementById('integral-a').value.trim();
+    const b = document.getElementById('integral-b').value.trim();
+    
+    if (expr === '' || a === '' || b === '') {
+      displayIntegralResult("Vui lòng nhập đầy đủ hàm số và cận", true);
+      return;
+    }
+    
+    const numA = parseFloat(a);
+    const numB = parseFloat(b);
+    
+    if (isNaN(numA) || isNaN(numB)) {
+      displayIntegralResult("Vui lòng nhập cận là số thực hợp lệ", true);
+      return;
+    }
+    
+    const histExpr = `∫(${expr}, ${a}, ${b})`;
+
+    try {
+      const response = await fetch('/engine/calculate-unary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          value: expr,
+          functionName: 'integral',
+          angleUnit: state.angleUnit,
+          lowerLimit: numA,
+          upperLimit: numB
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Lỗi tính toán tích phân');
+      }
+      
+      displayIntegralResult(data.result, false);
+
+      // Tích hợp hiển thị lên màn hình máy tính chính
+      state.expression = histExpr;
+      state.currentInput = data.result;
+      state.shouldResetNext = true;
+      state._showFullExpr = true;
+      state.isError = false;
+      state._errorMessage = '';
+      state.isConstant = true;
+      updateDisplay(state);
+      
+      try {
+        const historyResponse = await fetch('/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expression: histExpr,
+            result: data.result,
+            status: 'success',
+            userId: state.user ? state.user.uid : null
+          })
+        });
+        if (historyResponse.ok) {
+          refreshHistoryUI();
+        }
+      } catch (historyErr) {
+        console.error("Lỗi khi lưu lịch sử:", historyErr);
+      }
+    } catch (err) {
+      displayIntegralResult(err.message, true);
+      
+      // Hiển thị lỗi lên màn hình chính
+      state.expression = histExpr;
+      state.isError = true;
+      state._errorMessage = err.message;
+      updateDisplay(state);
+
+      try {
+        await fetch('/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expression: histExpr,
+            result: err.message,
+            status: 'error',
+            userId: state.user ? state.user.uid : null
+          })
+        });
+        refreshHistoryUI();
+      } catch (historyErr) {
+        console.error("Lỗi khi lưu lịch sử lỗi:", historyErr);
+      }
+    }
+  });
+}
 
 // Initial display rendering
 updateDisplay(state);

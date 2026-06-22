@@ -174,7 +174,7 @@ test('TC-E14 | F-008: ⌫ khi operator đã nhấn (waitingForSecond) bị bỏ 
   await press(page, '5', '+')                   // waitingForSecond=true
   await press(page, '⌫')
   expect(await result(page)).toBe('0')          // Giữ nguyên '0'
-  expect(await expression(page)).toBe('5 +')   // Expression không đổi
+  expect(await expression(page)).toBe('5 + 0')   // Expression không đổi
 })
 
 // ══════════════════════════════════════════════════════════════
@@ -327,7 +327,7 @@ test('TC-E29 | BRD §6: Operator highlight bật khi chọn toán tử, tắt kh
 
 test('TC-E30 | BRD §5: Dòng trên hiển thị "a op" khi đang nhập số thứ hai', async ({ page }) => {
   await press(page, '5', '+', '3')
-  expect(await expression(page)).toBe('5 +')     // Dòng trên: "523 +"
+  expect(await expression(page)).toBe('5 + 3')     // Dòng trên: "523 +"
   expect(await result(page)).toBe('3')           // Dòng dưới: số đang nhập
 })
 

@@ -41,7 +41,7 @@ describe('handleDigit', () => {
 
     press(c, '4')
     expect(c.result()).toBe('4')
-    expect(c.expression()).toBe('')
+    expect(c.expression()).toBe('4')
   })
 
   it('TC-D03 | sau "=", digit "0" → currentInput = "0"', () => {
@@ -60,7 +60,7 @@ describe('handleDigit', () => {
 
     press(c, '3')
     expect(c.result()).toBe('3')
-    expect(c.expression()).toBe('5 +')    // Expression giữ nguyên
+    expect(c.expression()).toBe('5 + 3')
   })
 
   it('TC-D05 | sau operator, digit "0" → currentInput = "0" (không "00")', () => {
@@ -138,7 +138,7 @@ describe('handleDecimalPoint', () => {
 
     press(c, '.')
     expect(c.result()).toBe('0.')
-    expect(c.expression()).toBe('')
+    expect(c.expression()).toBe('0.')
   })
 
   it('TC-DP04 | đã có "." → lần thứ hai bị bỏ qua (F-005)', () => {
@@ -185,7 +185,7 @@ describe('handleOperator', () => {
     press(c, '5', '+', '3', '=')          // result = 8
 
     press(c, '×')
-    expect(c.expression()).toBe('8 ×')
+    expect(c.expression()).toBe('8 × 0')
   })
 
   it('TC-OP03 | sau "=", dòng dưới về "0" khi nhấn toán tử (FS D-1)', () => {
@@ -201,7 +201,7 @@ describe('handleOperator', () => {
   it('TC-OP04 | toán tử liên tiếp → ghi đè operator, giữ firstOperand', () => {
     const c = createCalcEnv()
     press(c, '5', '+', '−')
-    expect(c.expression()).toBe('5 −')
+    expect(c.expression()).toBe('5 − 0')
   })
 
   it('TC-OP05 | sau ghi đè, phép tính thực hiện đúng với operator mới', () => {
@@ -221,7 +221,7 @@ describe('handleOperator', () => {
   it('TC-OP07 | dòng trên hiển thị "firstOperand op"', () => {
     const c = createCalcEnv()
     press(c, '5', '2', '3', '+')
-    expect(c.expression()).toBe('523 +')
+    expect(c.expression()).toBe('523 + 0')
   })
 
   it('TC-OP08 | operator highlight bật trên nút được chọn', () => {
@@ -238,17 +238,17 @@ describe('handleOperator', () => {
 
   // ── BR: Chain calculation ─────────────────────────────────
 
-  it('TC-OP10 | chain: 5 + 3 × → tự tính 5+3=8, rồi 8 ×', () => {
+  it('TC-OP10 | chain: 5 + 3 × → hiển thị "5 + 3 × 0", không tự tính', () => {
     const c = createCalcEnv()
     press(c, '5', '+', '3', '×')
-    expect(c.expression()).toBe('8 ×')
+    expect(c.expression()).toBe('5 + 3 × 0')
     expect(c.result()).toBe('0')
   })
 
-  it('TC-OP11 | chain: 10 ÷ 2 + → tự tính 10÷2=5, rồi 5 +', () => {
+  it('TC-OP11 | chain: 10 ÷ 2 + → hiển thị "10 ÷ 2 + 0", không tự tính', () => {
     const c = createCalcEnv()
     press(c, '1', '0', '÷', '2', '+')
-    expect(c.expression()).toBe('5 +')
+    expect(c.expression()).toBe('10 ÷ 2 + 0')
   })
 })
 
@@ -359,7 +359,7 @@ describe('handleEquals — Display (FS Output spec)', () => {
   it('TC-EQ14 | dòng trên hiển thị "a op" khi đang nhập số thứ hai', () => {
     const c = createCalcEnv()
     press(c, '5', '+', '3')
-    expect(c.expression()).toBe('5 +')
+    expect(c.expression()).toBe('5 + 3')
   })
 })
 
@@ -487,7 +487,7 @@ describe('handleBackspace (F-008)', () => {
 
     press(c, '⌫')
     expect(c.result()).toBe('0')          // Không đổi
-    expect(c.expression()).toBe('5 +')    // Expression giữ nguyên
+    expect(c.expression()).toBe('5 + 0')    // Expression giữ nguyên
   })
 
   it('TC-BS04 | "523" → "52"', () => {
@@ -701,7 +701,7 @@ describe('handleConstant (F-013, F-016)', () => {
 
     c.constant('pi')                        // Nạp pi — phải reset rồi gán
     expect(c.result()).toBe('3.1415926536')
-    expect(c.expression()).toBe('')         // Expression về rỗng
+    expect(c.expression()).toBe('3.1415926536')         // Biểu thức liền mạch hiển thị pi
   })
 
   it('TC-CONST05 | waitingForSecond=true, nhấn pi → dùng pi làm toán hạng thứ hai', () => {
@@ -709,7 +709,7 @@ describe('handleConstant (F-013, F-016)', () => {
     press(c, '1', '×')                      // waitingForSecond=true
     c.constant('pi')                        // Nhập pi làm toán hạng 2
     expect(c.result()).toBe('3.1415926536')
-    expect(c.expression()).toBe('1 ×')      // Expression giữ nguyên
+    expect(c.expression()).toBe('1 × 3.1415926536')      // Expression giữ nguyên
   })
 
   it('TC-CONST06 | sau pi, nhấn số → bắt đầu phép tính mới (isConstant block append)', () => {
@@ -911,4 +911,123 @@ describe('handleUnaryCalculation — Scientific Mode (BR-11, FS v2.0.0 §2.2)', 
     press(c, '⌫') // clears pendingUnary
     expect(c.expression()).toBe('')
   })
+
+  it('TC-BR03-v2.1.1 | giới hạn biểu thức 100 ký tự (BR-03)', () => {
+    const c = createCalcEnv()
+    // Nhập "sin(1)" 16 lần -> 16 * 6 = 96 ký tự
+    for (let i = 0; i < 16; i++) {
+      press(c, '1')
+      c.unary('sin')
+    }
+    expect(c.expression().replace(/\s/g, '').length).toBe(96)
+
+    // Gõ thêm "1", "2", "3" -> 99 ký tự
+    press(c, '1', '2', '3')
+    expect(c.expression().replace(/\s/g, '').length).toBe(99)
+
+    // Gõ thêm "4" -> 100 ký tự (được phép)
+    press(c, '4')
+    expect(c.expression().replace(/\s/g, '').length).toBe(100)
+
+    // Gõ thêm "5" -> bị chặn
+    press(c, '5')
+    expect(c.expression().replace(/\s/g, '').length).toBe(100)
+
+    // Thử gõ thêm operator -> bị chặn
+    press(c, '+')
+    expect(c.expression().replace(/\s/g, '').length).toBe(100)
+
+    // Thử gõ hằng số pi -> bị chặn
+    c.constant('pi')
+    expect(c.expression().replace(/\s/g, '').length).toBe(100)
+
+    // Thử gõ thêm unary -> bị chặn
+    c.unary('sin')
+    expect(c.expression().replace(/\s/g, '').length).toBe(100)
+  })
 })
+
+describe('Visual Fraction Input (F-021, BR-21)', () => {
+  it('TC-FR01 | Click fraction button chèn (⬚)/(⬚) và đặt con trỏ ảo ở tử số', () => {
+    const c = createCalcEnv()
+    c.document.getElementById('btn-fraction').click()
+    expect(c.window.state.expression).toBe('(⬚)/(⬚)')
+    expect(c.window.state.cursorIndex).toBe(1)
+  })
+
+  it('TC-FR02 | Gõ số khi con trỏ hoạt động thay thế ⬚ và dịch chuyển con trỏ', () => {
+    const c = createCalcEnv()
+    c.document.getElementById('btn-fraction').click()
+    c.digit('5')
+    expect(c.window.state.expression).toBe('(5)/(⬚)')
+    expect(c.window.state.cursorIndex).toBe(2)
+  })
+
+  it('TC-FR03 | Click vào mẫu số di chuyển con trỏ ảo đến mẫu số', () => {
+    const c = createCalcEnv()
+    c.document.getElementById('btn-fraction').click()
+    c.digit('5')
+    
+    const placeholders = c.document.querySelectorAll('.math-placeholder')
+    expect(placeholders.length).toBe(1)
+    placeholders[0].click()
+    expect(c.window.state.cursorIndex).toBe(5)
+  })
+
+  it('TC-FR04 | Gõ mẫu số và bấm "=" tính toán ra kết quả chuẩn xác', async () => {
+    const c = createCalcEnv()
+    c.document.getElementById('btn-fraction').click()
+    c.digit('5')
+    
+    let placeholders = c.document.querySelectorAll('.math-placeholder')
+    placeholders[0].click()
+    c.digit('3')
+    expect(c.window.state.expression).toBe('(5)/(3)')
+    
+    c.equals()
+    expect(c.result()).toBe('1.6666666667')
+  })
+
+  it('TC-FR05 | Xóa ký tự bằng backspace lùi con trỏ và xóa ký tự trước đó', () => {
+    const c = createCalcEnv()
+    c.document.getElementById('btn-fraction').click()
+    c.digit('5')
+    c.backspace()
+    expect(c.window.state.expression).toBe('(⬚)/(⬚)')
+    expect(c.window.state.cursorIndex).toBe(1)
+  })
+
+  it('TC-FR06 | Gõ nhiều chữ số liên tiếp vào tử số không bị reset con trỏ và không bị văng ra ngoài', () => {
+    const c = createCalcEnv()
+    c.document.getElementById('btn-fraction').click()
+    c.digit('5')
+    c.digit('3')
+    c.digit('2')
+    expect(c.window.state.expression).toBe('(532)/(⬚)')
+    expect(c.window.state.cursorIndex).toBe(4)
+  })
+
+  it('TC-FR07 | Bấm phím toán tử khi con trỏ ở cuối phân số sẽ tự động thoát con trỏ ảo và nối toán tử ra ngoài', () => {
+    const c = createCalcEnv()
+    c.document.getElementById('btn-fraction').click()
+    c.digit('5')
+    
+    let placeholders = c.document.querySelectorAll('.math-placeholder')
+    placeholders[0].click()
+    c.digit('3')
+    
+    c.operator('+')
+    expect(c.window.state.expression).toBe('(5)/(3) + ')
+    expect(c.window.state.cursorIndex).toBeNull()
+  })
+
+  it('TC-FR08 | Bấm phím toán tử khi con trỏ ở giữa biểu thức tử số vẫn chèn bình thường', () => {
+    const c = createCalcEnv()
+    c.document.getElementById('btn-fraction').click()
+    c.digit('5')
+    c.operator('+')
+    expect(c.window.state.expression).toBe('(5+)/(⬚)')
+    expect(c.window.state.cursorIndex).toBe(3)
+  })
+})
+

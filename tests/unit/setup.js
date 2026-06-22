@@ -96,7 +96,7 @@ window.originalFetch = window.fetch;
 `
 
 // Ghép nối mã nguồn theo thứ tự phụ thuộc
-const FULL_JS = [stubs, cleanEngine, cleanUi, cleanApiMock, cleanCalculator].join('\n;\n')
+const FULL_JS = [stubs, cleanEngine, cleanUi, cleanApiMock, cleanCalculator, 'window.state = state;'].join('\n;\n')
 
 console.log("Vitest setup.js - JSDOM HTML length:", HTML.length);
 console.log("Vitest setup.js - FULL_JS length:", FULL_JS.length);
@@ -154,6 +154,8 @@ export function createCalcEnv() {
     },
     angleUnit: () => d.getElementById('angle-badge').textContent, // v2.0.0: DEG/RAD badge
     toggleAngle: () => d.getElementById('btn-angle').click(),
+    window: w,
+    document: d
   }
 }
 

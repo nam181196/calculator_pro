@@ -130,7 +130,7 @@ flowchart LR
     J --> A
 ```
 
-### 5.2 Luồng tính toán khoa học 1 toán hạng (cần dấu '=' — mới v2.0.0)
+### 5.2 Luồng tính toán khoa học 1 toán hạng
 
 ```mermaid
 flowchart TD
@@ -151,7 +151,7 @@ flowchart TD
     L --> A
 ```
 
-### 5.3 Luồng tính toán khoa học 2 toán hạng (cần toán tử và '=' — mới v2.0.0)
+### 5.3 Luồng tính toán khoa học 2 toán hạng
 
 ```mermaid
 flowchart LR

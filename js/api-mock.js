@@ -13,7 +13,15 @@
         SYSTEM_ARCHITECTURE_v2.0.0.md — Section 2 (Constraints)
    ============================================================ */
 
-import { performCalculation, performUnaryCalculation, formatResult } from './engine.js';
+import { 
+  performCalculation, 
+  performUnaryCalculation, 
+  formatResult,
+  evaluateExpression,
+  solveEquation,
+  integrateSimpson,
+  solveForX
+} from './engine.js';
 import { register, login, logout, db, isFirebaseConfigured } from '../auth/firebase-auth.js';
 import { saveHistoryEntry, clearCloudHistory, getMockCloudHistory, saveMockCloudHistory } from './sync.js';
 import {
@@ -85,9 +93,40 @@ window.fetch = async function (url, options = {}) {
     // 1. CALCULATOR ENGINE ENDPOINTS
     // ------------------------------------------------------------
     if (path === '/engine/calculate' && method === 'POST') {
-      const { operand1, operator, operand2 } = body;
+      const { expression, operand1, operator, operand2, angleUnit } = body;
       try {
-        const result = performCalculation(operand1, operator, operand2);
+        let result;
+        if (expression !== undefined) {
+          result = evaluateExpression(expression, angleUnit || 'DEG');
+        } else {
+          result = performCalculation(operand1, operator, operand2);
+        }
+        const formatted = formatResult(result);
+        return jsonResponse(200, { status: 'success', result: formatted });
+      } catch (err) {
+        return jsonResponse(400, { status: 'error', message: err.message });
+      }
+    }
+ 
+    if (path === '/engine/solve-x' && method === 'POST') {
+      const { expression, angleUnit } = body;
+      try {
+        const result = solveForX(expression, angleUnit || 'DEG');
+        return jsonResponse(200, { status: 'success', result });
+      } catch (err) {
+        return jsonResponse(400, { status: 'error', message: err.message });
+      }
+    }
+
+    if (path === '/engine/calculate-unary' && method === 'POST') {
+      const { value, functionName, angleUnit, lowerLimit, upperLimit } = body;
+      try {
+        let result;
+        if (functionName === 'integral') {
+          result = integrateSimpson(value, lowerLimit, upperLimit, angleUnit || 'DEG');
+        } else {
+          result = performUnaryCalculation(value, functionName, angleUnit || 'DEG');
+        }
         const formatted = formatResult(result);
         return jsonResponse(200, { status: 'success', result: formatted });
       } catch (err) {
@@ -95,12 +134,11 @@ window.fetch = async function (url, options = {}) {
       }
     }
 
-    if (path === '/engine/calculate-unary' && method === 'POST') {
-      const { value, functionName, angleUnit } = body;
+    if (path === '/engine/solve' && method === 'POST') {
+      const { coefficients, type } = body;
       try {
-        const result = performUnaryCalculation(value, functionName, angleUnit);
-        const formatted = formatResult(result);
-        return jsonResponse(200, { status: 'success', result: formatted });
+        const roots = solveEquation(coefficients, type);
+        return jsonResponse(200, { status: 'success', roots });
       } catch (err) {
         return jsonResponse(400, { status: 'error', message: err.message });
       }

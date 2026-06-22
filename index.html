@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Máy tính web khoa học đơn giản — tính toán tức thời, đồng bộ đám mây và tùy chọn theme sáng tối." />
   <title>Scientific Calculator</title>
-  <link rel="stylesheet" href="style.css?v=2.0.1" />
+  <link rel="stylesheet" href="style.css?v=2.1.2" />
   <!-- Script đồng bộ chạy trước khi render để chống flash giao diện (FOUC) -->
   <script>
     (function() {
@@ -46,19 +46,117 @@
 
     <!-- Display — SAD Section 5, BRD Section 5 (hai dòng) -->
     <div class="display">
+      <div class="display__indicators">
+        <span class="display__indicator" data-indicator="S">S</span>
+        <span class="display__indicator" data-indicator="A">A</span>
+        <span class="display__indicator" data-indicator="Math">Math</span>
+        <span class="display__indicator" data-indicator="D">D</span>
+        <span class="display__indicator" data-indicator="R">R</span>
+        <span class="display__indicator" data-indicator="up">▲</span>
+        <span class="display__indicator" data-indicator="down">▼</span>
+      </div>
       <div class="display__expression" id="display-expression" aria-live="polite"></div>
       <div class="display__result"     id="display-result"     aria-live="assertive">0</div>
     </div>
 
     <!-- Keypad: Bàn phím tích hợp -->
     <div class="keypad-container">
-      <!-- Tabs cho màn hình mobile -->
+      <!-- Tabs cho màn hình mobile/desktop -->
       <div class="keypad-tabs" id="keypad-tabs">
-        <button class="keypad-tab active" data-target="basic">Cơ bản</button>
-        <button class="keypad-tab" data-target="scientific">Khoa học</button>
+        <button class="keypad-tab active" data-target="basic" id="tab-basic">
+          <span class="tab-label-mobile">Cơ bản</span>
+          <span class="tab-label-desktop">Bàn phím</span>
+        </button>
+        <button class="keypad-tab" data-target="scientific" id="tab-scientific">Khoa học</button>
+        <button class="keypad-tab" data-target="tools" id="tab-tools">Công cụ</button>
       </div>
 
       <div class="keypads">
+        <!-- Bàn phím công cụ (Solver & Integral) -->
+        <div class="keypad keypad--tools" id="keypad-tools">
+          <div class="tools-container">
+            <!-- Section 1: Solver -->
+            <div class="tool-section tool-section--solver">
+              <h4 class="tool-title">Giải phương trình</h4>
+              <div class="form-group">
+                <label for="solver-type">Loại phương trình</label>
+                <select id="solver-type" class="tool-select">
+                  <option value="linear">Bậc nhất (ax + b = 0)</option>
+                  <option value="quadratic" selected>Bậc hai (ax² + bx + c = 0)</option>
+                  <option value="system2">Hệ 2 ẩn</option>
+                </select>
+              </div>
+              
+              <!-- Inputs for Coefficients -->
+              <div id="solver-inputs" class="solver-inputs-grid">
+                <!-- Fields for linear & quadratic (a, b, c) -->
+                <div class="form-group coef-field" data-coef="a">
+                  <label for="coef-a">Hệ số a</label>
+                  <input type="text" id="coef-a" class="tool-input" placeholder="a">
+                </div>
+                <div class="form-group coef-field" data-coef="b">
+                  <label for="coef-b">Hệ số b</label>
+                  <input type="text" id="coef-b" class="tool-input" placeholder="b">
+                </div>
+                <div class="form-group coef-field" data-coef="c">
+                  <label for="coef-c">Hệ số c</label>
+                  <input type="text" id="coef-c" class="tool-input" placeholder="c">
+                </div>
+
+                <!-- Fields for system2 (a1, b1, c1, a2, b2, c2) -->
+                <div class="form-group coef-field hidden" data-coef="a1">
+                  <label for="coef-a1">a₁</label>
+                  <input type="text" id="coef-a1" class="tool-input" placeholder="a₁">
+                </div>
+                <div class="form-group coef-field hidden" data-coef="b1">
+                  <label for="coef-b1">b₁</label>
+                  <input type="text" id="coef-b1" class="tool-input" placeholder="b₁">
+                </div>
+                <div class="form-group coef-field hidden" data-coef="c1">
+                  <label for="coef-c1">c₁</label>
+                  <input type="text" id="coef-c1" class="tool-input" placeholder="c₁">
+                </div>
+                <div class="form-group coef-field hidden" data-coef="a2">
+                  <label for="coef-a2">a₂</label>
+                  <input type="text" id="coef-a2" class="tool-input" placeholder="a₂">
+                </div>
+                <div class="form-group coef-field hidden" data-coef="b2">
+                  <label for="coef-b2">b₂</label>
+                  <input type="text" id="coef-b2" class="tool-input" placeholder="b₂">
+                </div>
+                <div class="form-group coef-field hidden" data-coef="c2">
+                  <label for="coef-c2">c₂</label>
+                  <input type="text" id="coef-c2" class="tool-input" placeholder="c₂">
+                </div>
+              </div>
+              
+              <button id="btn-solve" class="btn-tool">Giải</button>
+              <div id="solver-result" class="tool-result"></div>
+            </div>
+
+            <!-- Section 2: Definite Integral -->
+            <div class="tool-section tool-section--integral">
+              <h4 class="tool-title">Tích phân xác định</h4>
+              <div class="form-group">
+                <label for="integral-expr">Hàm số f(x)</label>
+                <input type="text" id="integral-expr" class="tool-input" placeholder="Ví dụ: x^2 + sin(x)">
+              </div>
+              <div class="integral-limits">
+                <div class="form-group">
+                  <label for="integral-a">Cận dưới a</label>
+                  <input type="text" id="integral-a" class="tool-input" placeholder="a">
+                </div>
+                <div class="form-group">
+                  <label for="integral-b">Cận trên b</label>
+                  <input type="text" id="integral-b" class="tool-input" placeholder="b">
+                </div>
+              </div>
+              <button id="btn-integrate" class="btn-tool">Tính tích phân</button>
+              <div id="integral-result" class="tool-result"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Bàn phím khoa học -->
         <div class="keypad keypad--scientific" id="keypad-scientific">
           <button class="btn btn--sci" data-action="sci-1op" data-value="sin">sin</button>
@@ -77,13 +175,14 @@
           <button class="btn btn--sci" data-action="sci-1op" data-value="percent">%</button>
 
           <button class="btn btn--sci" data-action="sci-1op" data-value="sqrt">√</button>
-          <button class="btn btn--sci" data-action="sci-1op" data-value="cbrt">³√</button>
+          <button class="btn btn--sci" data-action="fraction" id="btn-fraction">■/□</button>
           <button class="btn btn--sci" data-action="sci-1op" data-value="sq">x²</button>
           <button class="btn btn--sci" data-action="sci-1op" data-value="cube">x³</button>
 
           <button class="btn btn--sci" data-action="operator" data-value="^">x<sup>y</sup></button>
           <button class="btn btn--sci" data-action="operator" data-value="ʸ√x">ʸ√x</button>
-          <button class="btn btn--sci btn--wide2" data-action="sci-1op" data-value="factorial">x!</button>
+          <button class="btn btn--sci" data-action="sci-1op" data-value="factorial">x!</button>
+          <button class="btn btn--sci" data-action="variable" data-value="x" id="btn-var-x">x</button>
         </div>
 
         <!-- Bàn phím cơ bản -->
@@ -180,7 +279,7 @@
 
   <div class="modal-overlay" id="modal-overlay"></div>
 
-  <!-- Nạp script chính dưới dạng ES6 Module -->
-  <script type="module" src="calculator.js"></script>
+  <!-- Nạp script chính dưới dạng ES6 Module với cache busting -->
+  <script type="module" src="calculator.js?v=2.1.2"></script>
 </body>
 </html>
