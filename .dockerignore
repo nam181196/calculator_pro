@@ -1,0 +1,15 @@
+node_modules
+tests
+scratch
+test_reports
+docs
+template
+.git
+.gitignore
+package.json
+package-lock.json
+playwright.config.js
+vitest.config.js
+Dockerfile
+.dockerignore
+.DS_Store
