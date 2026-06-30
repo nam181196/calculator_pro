@@ -7,9 +7,9 @@ Hôm nay, ngày ...... tháng ...... năm 2026, các bên liên quan đã tiến
 
 ## 1. THÀNH PHẦN THAM GIA
 
-*   **BÊN A (ĐẠI DIỆN KHÁCH HÀNG / PRODUCT OWNER):**
-    *   Ông/Bà: **Nam** - Chức vụ: **Product Owner**
-*   **BÊN B (ĐẠI DIỆN ĐỘI PHÁT TRIỂN / QA ASSISTANT):**
+*   **BÊN A (ĐẠI DIỆN KHÁCH HÀNG):**
+    *   Ông/Bà: **[Họ tên Đại diện Khách hàng]** - Chức vụ: **Đại diện Nghiệm thu**
+*   **BÊN B (ĐẠI DIỆN ĐỘI PHÁT TRIỂN):**
     *   Ông/Bà: **Nam** - Chức vụ: **Technical Lead & QA Lead**
 
 ---
@@ -49,7 +49,7 @@ Bên B tiến hành bàn giao và Bên A nghiệm thu các hạng mục sản ph
 
 ## 5. CHỮ KÝ XÁC NHẬN NGHIỆM THU
 
-| ĐẠI DIỆN BÊN A (Product Owner) | ĐẠI DIỆN BÊN B (Tech Lead & QA) |
+| ĐẠI DIỆN BÊN A (Đại diện Khách hàng) | ĐẠI DIỆN BÊN B (Tech Lead & QA) |
 | :---: | :---: |
 | <br><br> *(Ký tên và ghi rõ họ tên)* | <br><br> *(Ký tên và ghi rõ họ tên)* |
-| <br> **Nam** | <br> **Nam** |
+| <br> **[Họ tên Đại diện Khách hàng]** | <br> **Nam** |
