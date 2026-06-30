@@ -17,7 +17,7 @@
 | 1.0.0   | 2026-05-29 | Nam       | Tài liệu kiến trúc ban đầu (v1.0.0)                                                                           |
 | 2.0.0   | 2026-06-08 | Nam       | Cập nhật v2.0.0: Thêm Scientific Mode, Dark/Light Mode, Cloud History Sync, Firebase Authentication           |
 | 2.1.0   | 2026-06-15 | Nam       | Nâng cấp v2.1.0: Thiết kế Expression Parser (PEMDAS), Equation Solver, Definite Integral Engine               |
-| 2.1.1   | 2026-06-18 | Nam       | Nâng cấp v2.1.1: Thiết kế giao diện hiển thị liền mạch, thanh chỉ báo trạng thái và bộ phân tích giải tích nâng cao (lồng nhau/thương đạo hàm) |
+| 2.1.1   | 2026-06-18 | Nam       | Nâng cấp v2.1.1: Thiết kế giao diện hiển thị liền mạch, thanh chỉ báo trạng thái và bộ phân tích giải tích nâng cao |
 
 ---
 

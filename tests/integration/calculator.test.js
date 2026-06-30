@@ -1031,3 +1031,41 @@ describe('Visual Fraction Input (F-021, BR-21)', () => {
   })
 })
 
+describe('Free Variable x Routing (v2.1.2)', () => {
+  it('TC-RT01 | d/dx(x^2, 2) -> không chứa x tự do -> tính toán thường = 4', () => {
+    const c = createCalcEnv()
+    c.window.state.expression = 'd/dx(x^2, 2)'
+    c.equals()
+    expect(c.result()).toBe('4')
+  })
+
+  it('TC-RT02 | d/dx(x^2, x) -> chứa x tự do ở đối số 2 -> kích hoạt Solver -> x xấp xỉ 0', () => {
+    const c = createCalcEnv()
+    c.window.state.expression = 'd/dx(x^2, x)'
+    c.equals()
+    const match = c.result().match(/^x\s*=\s*(.+)$/)
+    expect(match).not.toBeNull()
+    const val = parseFloat(match[1])
+    expect(Math.abs(val)).toBeLessThan(1e-5)
+  })
+
+  it('TC-RT03 | ∫(x^2, 0, x) -> chứa x tự do ở cận trên -> kích hoạt Solver -> x xấp xỉ 0', () => {
+    const c = createCalcEnv()
+    c.window.state.expression = '∫(x^2, 0, x)'
+    c.equals()
+    const match = c.result().match(/^x\s*=\s*(.+)$/)
+    expect(match).not.toBeNull()
+    const val = parseFloat(match[1])
+    expect(Math.abs(val)).toBeLessThan(1e-3)
+  })
+
+  it('TC-RT04 | x^2 - 4 -> chứa x tự do -> kích hoạt Solver -> x = 2 hoặc x = -2', () => {
+    const c = createCalcEnv()
+    c.window.state.expression = 'x^2 - 4'
+    c.equals()
+    const res = c.result()
+    expect(res === 'x = 2' || res === 'x = -2').toBe(true)
+  })
+})
+
+

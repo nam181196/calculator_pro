@@ -7,11 +7,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { 
-  performCalculation, 
-  performUnaryCalculation, 
+import {
+  performCalculation,
+  performUnaryCalculation,
   formatResult,
-  solveForX
+  solveForX,
+  evaluateExpression,
+  solveEquation
 } from '../../js/engine.js';
 
 describe('Engine: performCalculation (2 operands)', () => {
@@ -242,6 +244,32 @@ describe('Engine: formatResult', () => {
   });
 });
 
+describe('Engine: evaluateExpression (PEMDAS with Calculus Integration)', () => {
+  it('TC-EXP-CALC01 | Đạo hàm đơn giản d/dx(x^2, 2) = 4', () => {
+    expect(evaluateExpression('d/dx(x^2, 2)')).toBeCloseTo(4, 5);
+  });
+
+  it('TC-EXP-CALC02 | Tích phân đơn giản ∫(x^2, 0, 1) = 0.3333333333', () => {
+    expect(evaluateExpression('∫(x^2, 0, 1)')).toBeCloseTo(1 / 3, 5);
+  });
+
+  it('TC-EXP-CALC03 | Đạo hàm lồng tích phân d/dx(∫(x^2, 0, x), 2) = 4', () => {
+    expect(evaluateExpression('d/dx(∫(x^2, 0, x), 2)')).toBeCloseTo(4, 3);
+  });
+
+  it('TC-EXP-CALC04 | Biểu thức PEMDAS thông thường: 2 + 3 * 4 = 14', () => {
+    expect(evaluateExpression('2 + 3 * 4')).toBe(14);
+  });
+
+  it('TC-EXP-CALC05 | Căn bậc ba ³√8 = 2', () => {
+    expect(evaluateExpression('³√8')).toBe(2);
+  });
+
+  it('TC-EXP-CALC06 | Căn bậc n 3 ʸ√x 8 = 2', () => {
+    expect(evaluateExpression('3 ʸ√x 8')).toBe(2);
+  });
+});
+
 describe('Engine: solveForX (Newton-Raphson Solver)', () => {
   it('TC-SLV01 | Giải phương trình bậc nhất (2x - 4 = 0)', () => {
     expect(solveForX('2x - 4')).toBe('x = 2');
@@ -262,5 +290,39 @@ describe('Engine: solveForX (Newton-Raphson Solver)', () => {
 
   it('TC-SLV05 | Biểu thức lỗi cú pháp -> ném lỗi', () => {
     expect(() => solveForX('x +')).toThrow('Lỗi cú pháp');
+  });
+});
+
+describe('Engine: solveEquation (Solver)', () => {
+  it('TC-EQ01 | Giải phương trình bậc nhất hợp lệ (2x - 4 = 0)', () => {
+    expect(solveEquation([2, -4], 'linear')).toEqual(['2']);
+  });
+
+  it('TC-EQ02 | Giải phương trình bậc hai hợp lệ (x^2 - 9 = 0)', () => {
+    expect(solveEquation([1, 0, -9], 'quadratic')).toEqual(['3', '-3']);
+  });
+
+  it('TC-EQ03 | Giải hệ phương trình 2 ẩn hợp lệ (x + y = 3, x - y = 1)', () => {
+    expect(solveEquation([1, 1, 3, 1, -1, 1], 'system2')).toEqual(['x = 2', 'y = 1']);
+  });
+
+  it('TC-EQ04 | Thiếu hệ số bậc hai -> ném lỗi', () => {
+    expect(() => solveEquation([1, 0], 'quadratic')).toThrow('Hệ số gửi lên không phải là định dạng số hợp lệ');
+  });
+
+  it('TC-EQ05 | Thừa hệ số bậc nhất -> ném lỗi', () => {
+    expect(() => solveEquation([2, -4, 0], 'linear')).toThrow('Hệ số gửi lên không phải là định dạng số hợp lệ');
+  });
+
+  it('TC-EQ06 | Loại phương trình không hợp lệ -> ném lỗi', () => {
+    expect(() => solveEquation([1, 2], 'invalid_type')).toThrow('Loại phương trình không hỗ trợ');
+  });
+
+  it('TC-EQ07 | coefficients không phải là mảng -> ném lỗi', () => {
+    expect(() => solveEquation('not_an_array', 'linear')).toThrow('Hệ số gửi lên không phải là định dạng số hợp lệ');
+  });
+
+  it('TC-EQ08 | Có hệ số chứa NaN/Infinity -> ném lỗi', () => {
+    expect(() => solveEquation([2, NaN], 'linear')).toThrow('Hệ số gửi lên không phải là định dạng số hợp lệ');
   });
 });

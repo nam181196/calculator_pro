@@ -4,7 +4,7 @@
 | :-------------------- | :------------------------------ |
 | **Dự án**             | Simple Calculator Web App       |
 | **Phiên bản**         | v2.1.2                          |
-| **Cập nhật lần cuối** | 2026-06-19                      |
+| **Cập nhật lần cuối** | 2026-06-23                      |
 | **Trạng thái**        | APPROVED                        |
 | **Tác giả**           | Nam (Product Owner & Developer) |
 
@@ -18,43 +18,40 @@
 | 2.0.0     | 2026-06-08 | Nam          | Nâng cấp lớn: thêm Scientific Mode, Dark/Light Mode, Cloud History Sync, Authentication và yêu cầu phím `=` để tính toán Unary |
 | 2.1.0     | 2026-06-15 | Nam          | Nâng cấp tính năng nâng cao: PEMDAS Parser, Equation Display, Solver và Definite Integral                   |
 | 2.1.1     | 2026-06-18 | Nam          | Nâng cấp giao diện hiển thị liền mạch, tích hợp chỉ báo trạng thái và hỗ trợ biểu thức giải tích phức hợp|
-| 2.1.2     | 2026-06-19 | Nam          | Nâng cấp v2.1.2: Thêm phím nhập ẩn biến `x` trên bàn phím khoa học, bộ giải phương trình Tìm x (Newton-Raphson Solver) và phím nhập phân số trực quan `■/□` dạng ô vuông điền tham số. |
+| 2.1.2     | 2026-06-23 | Nam          | Thống nhất đặc tả toàn bộ dự án từ phiên bản sơ khai đến v2.1.2: Bổ sung phím nhập ẩn biến `x` tự do trên màn hình chính, bộ giải phương trình tìm `x` số học (Newton-Raphson Solver), và phím nhập phân số đứng trực quan `■/□` dạng ô vuông điền tham số. |
 
 ---
 
 ## 1. PROJECT OVERVIEW
+Simple Calculator Web App là ứng dụng máy tính đa năng chạy trực tiếp trên trình duyệt web, được thiết kế để mang lại trải nghiệm tính toán mượt mà, trực quan và mạnh mẽ từ các phép toán cơ bản đến nâng cao. Dự án này được thiết kế và triển khai chặt chẽ theo triết lý **Spec-Driven Development** (Phát triển hướng đặc tả) nhằm chuẩn hóa toàn bộ tài liệu đặc tả trước khi lập trình.
 
-Simple Calculator Web App v2.1.2 bổ sung năng lực giải phương trình trực tiếp trên màn hình nhập liệu chính thông qua việc giới thiệu phím nhập ẩn biến `x` và tích hợp bộ giải toán số học tìm `x` (Newton-Raphson Solver). Người dùng không còn bị giới hạn việc giải phương trình trong tab Solver cố định, mà có thể tự do gõ mọi phương trình/biểu thức đại số chứa ẩn `x` ngay trên dòng nhập liệu chính và nhấn phím `=` để tìm nghiệm trực tiếp. Đồng thời, v2.1.2 bổ sung phím nhập phân số trực quan dạng ô vuông `■/□` cho phép xây dựng cấu trúc phân số dạng đứng, lựa chọn các ô vuông trống và điền tham số trực tiếp.
-
-Các điểm nâng cấp cốt lõi của v2.1.2 bao gồm:
-- **Phím ẩn biến `x` trên bàn phím:** Thêm nút bấm `x` chuyên dụng trên bàn phím khoa học ảo (Keypad Scientific) và hỗ trợ phím cứng để tiện lợi khi nhập liệu.
-- **Bộ giải phương trình Tìm x (Newton-Raphson Solver):** Khi người dùng nhập một biểu thức chứa biến tự do `x` (ví dụ `x^2 - 9 = 0` hoặc chỉ gõ `x^2 - 9` biểu thị phương trình bằng 0) và nhấn phím `=`, máy tính sẽ tự động chạy thuật toán Newton-Raphson để giải tìm nghiệm `x` và hiển thị kết quả `x = [nghiệm]`.
-- **Phím nhập phân số trực quan (`■/□`):** Bổ sung nút bấm phân số trên scientific keypad (thay thế phím căn bậc 3 `³√`), cho phép chèn cấu trúc phân số đứng với các ô vuông điền tham số.
+- **Mục đích:** Cung cấp một nền tảng tính toán khoa học đa năng, trực quan, chạy trực tiếp trên trình duyệt web, giúp người dùng giải quyết các bài toán từ cơ bản đến nâng cao một cách thuận tiện mà không cần cài đặt phần mềm bổ sung.
+- **Giá trị kinh doanh:** Tối ưu hóa hiệu suất làm việc của người dùng bằng cách giảm thiểu sự gián đoạn trong luồng thao tác trên trình duyệt, cung cấp khả năng truy cập tức thì, tính nhất quán trên mọi thiết bị và đảm bảo tính liên tục của dữ liệu mà không phát sinh chi phí cài đặt hay bảo trì.
+- **Người dùng mục tiêu:** Nhân viên văn phòng, học sinh, sinh viên, kỹ sư và bất kỳ ai có nhu cầu tính toán hoặc xử lý số liệu nhanh chóng trong học tập và công việc hàng ngày.
 
 ---
 
 ## 2. PROBLEMS & OPPORTUNITIES
 
 ### Problems
-
-- **Hạn chế việc nhập biến x:** Ở v2.1.1, biến `x` chỉ được phép nhập bên trong các hàm giải tích `d/dx` hoặc `∫`. Nếu gõ `x` đơn độc hoặc bên ngoài các hàm này và nhấn `=`, máy tính sẽ báo lỗi cú pháp.
-- **Thiếu phím biến số chuyên dụng:** Người dùng không có phím ảo `x` để gõ trên giao diện màn hình cảm ứng điện thoại, bắt buộc phải sử dụng bàn phím vật lý máy tính.
-- **Giải phương trình bị gò bó:** Tab Solver ở v2.1.1 chỉ cho phép nhập hệ số của các dạng phương trình định sẵn (bậc 1, bậc 2, hệ 2 ẩn). Người dùng không thể nhập và giải các phương trình tùy ý hoặc phức tạp hơn (ví dụ: phương trình chứa lượng giác, logarit, mũ như `sin(x) - 0.5 = 0`).
+- **Rào cản truy cập:** Máy tính trên hệ điều hành yêu cầu nhiều thao tác để mở; người dùng không muốn cài thêm ứng dụng mới chỉ để tính toán đơn giản, đồng thời các ứng dụng tính toán web thông thường đòi hỏi kết nối mạng liên tục và không thể hoạt động ngoại tuyến (Offline-First).
+- **Thiếu tính nhất quán:** Giao diện và hành vi máy tính khác nhau trên từng hệ điều hành, đồng thời dữ liệu lịch sử tính toán không được lưu giữ hoặc đồng bộ hóa an toàn giữa các thiết bị khác nhau của cùng một người dùng.
+- **Gián đoạn luồng làm việc:** Người dùng đang thao tác trên trình duyệt phải thoát ra ngoài để mở các công cụ giải tích và giải phương trình chuyên sâu phức tạp, hoặc gặp khó khăn khi nhập các công thức phức tạp (như phân số đứng) ngay trên dòng nhập liệu thông thường.
 
 ### Opportunities
-
-- **Tự do thiết lập phương trình:** Việc hỗ trợ nhập biến `x` và phím bấm tương ứng giúp người dùng biến dòng nhập liệu chính thành một bảng viết phương trình tự do.
-- **Bộ giải toán tổng quát (General Numerical Solver):** Tích hợp thuật toán lặp số Newton-Raphson cho phép giải hầu hết các loại phương trình liên tục từ đơn giản đến phức tạp trực tiếp từ màn hình chính.
-- **Trải nghiệm người dùng đồng nhất:** Tận dụng tối đa dòng hiển thị biểu thức liền mạch toán học của v2.1.1 để hiển thị các phương trình chứa ẩn, mang lại cảm giác cao cấp tương tự dòng máy tính Casio FX.
+- **Truy cập tức thì, không rào cản:** Người dùng chỉ cần mở trình duyệt và vào URL — không cài đặt, không bắt buộc đăng ký để sử dụng các tính năng cơ bản, và hoạt động hoàn toàn ngoại tuyến sau lần tải đầu tiên.
+- **Nhất quán trên mọi thiết bị:** Giao diện hiển thị trực quan và hành vi hoàn toàn giống nhau dù dùng trên Windows, macOS, iOS hay Android, đồng thời tích hợp tính năng đồng bộ đám mây (Cloud Sync) để duy trì lịch sử tính toán liền mạch khi đăng nhập trên mọi thiết bị.
+- **Không tốn chi phí vận hành:** Sử dụng kiến trúc Serverless (không máy chủ) kết hợp xử lý client-side, đảm bảo hệ thống tự vận hành ổn định trên GitHub Pages/CDN mà không phát sinh chi phí duy trì cơ sở hạ tầng.
+- **Dễ chia sẻ và mở rộng:** Dễ dàng chia sẻ qua liên kết URL và mở rộng liên tục các tính năng giải toán chuyên sâu (PEMDAS, đạo hàm, tích phân, bộ giải phương trình) trên cùng một cấu trúc mã nguồn chuẩn hóa.
 
 ---
 
 ## 3. PROJECT OBJECTIVES
 
-- **Hỗ trợ phím biến số `x`:** Thêm phím ảo `x` chuyên dụng vào Scientific Keypad.
-- **Kích hoạt tính năng Tìm x qua phím `=`:** Khi phát hiện biểu thức chứa biến tự do `x`, phím `=` sẽ thực hiện tìm nghiệm thay vì báo lỗi cú pháp.
-- **Giải nghiệm số chính xác cao:** Bộ solver Newton-Raphson hoạt động với sai số hội tụ cực nhỏ ($\le 10^{-7}$) và hỗ trợ đa điểm khởi tạo ($1.0, 0.0, -1.0, 10.0, -10.0$) để tối đa hóa khả năng tìm thấy nghiệm thực.
-- **Không phá vỡ cấu trúc hiển thị:** Kết quả nghiệm tìm được hiển thị tường minh dưới dạng `x = [giá trị]` ở dòng dưới màn hình.
+- **Đơn giản tuyệt đối:** Thiết kế giao diện trực quan giúp người dùng dễ dàng làm quen, nhập liệu và nhận kết quả tính toán nhanh chóng mà không cần tài liệu hướng dẫn.
+- **Chính xác và tin cậy:** Đảm bảo độ chính xác số học cao cho mọi thuật toán xử lý; nhận diện và thông báo lỗi tường minh đối với các trường hợp lỗi cú pháp hoặc giá trị toán học vượt ngoài miền xác định.
+- **Hiệu năng tối ưu:** Tốc độ xử lý tính toán phản hồi tức thời (< 100ms); ứng dụng hoạt động ổn định và sẵn sàng phục vụ trong cả môi trường ngoại tuyến (Offline-First).
+- **Phát triển hướng đặc tả (Spec-Driven Development):** Toàn bộ cấu trúc hệ thống, luồng dữ liệu và thiết kế giao diện phải được chuẩn hóa qua bộ tài liệu đặc tả trước khi bắt đầu lập trình.
 
 ---
 

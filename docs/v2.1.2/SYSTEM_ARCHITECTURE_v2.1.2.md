@@ -169,6 +169,46 @@ Do ứng dụng tuân thủ kiến trúc **Zero Build Step / Static App**, mô h
 
 ## C4 Model Diagrams
 
+### Level 1: System Context Diagram
+
+```mermaid
+C4Context
+    title System Context - Simple Calculator Web App v2.1.2
+
+    Person(user, "Người dùng", "Người dùng phổ thông hoặc học sinh, sinh viên, kỹ sư cần tính toán và đồng bộ dữ liệu")
+    System(calculator, "Simple Calculator Web App", "Ứng dụng web máy tính hỗ trợ chế độ khoa học, hiển thị toán học 2D, giải phương trình và đồng bộ dữ liệu")
+    System_Ext(firebase, "Firebase Services", "Xác thực người dùng (Auth) và Lưu trữ đám mây (Firestore)")
+
+    Rel(user, calculator, "Sử dụng tính toán, đăng nhập, đổi giao diện", "Trình duyệt")
+    Rel(calculator, firebase, "Xác thực và đồng bộ dữ liệu lịch sử", "HTTPS / WebSockets")
+```
+
+### Level 2: Container Diagram
+
+```mermaid
+C4Container
+    title Container Diagram - Simple Calculator Web App v2.1.2
+
+    Person(user, "Người dùng")
+    Container(browser, "Trình duyệt Web", "Chrome / Firefox / Safari", "Môi trường chạy ứng dụng phía Client")
+
+    System_Boundary(app, "Ứng dụng Tĩnh (Client)") {
+        Container(html, "index.html", "HTML5", "Cấu trúc bàn phím khoa học, giao diện hiển thị 2D, sidebar và modal")
+        Container(css, "style.css", "CSS3", "Hệ thống style động, hỗ trợ theme dark/light, glassmorphism và Math Layout")
+        Container(js, "calculator.js & modules", "ES6 JS Modules", "Xử lý logic, giải nghiệm Newton-Raphson, xác thực, đồng bộ và giao diện")
+    }
+
+    System_Ext(fb_auth, "Firebase Authentication", "Cloud Service", "Dịch vụ xác thực và lưu phiên đăng nhập")
+    System_Ext(fb_firestore, "Firebase Firestore", "NoSQL Database", "Lưu trữ lịch sử tính toán cá nhân hóa")
+
+    Rel(user, browser, "Tương tác")
+    Rel(browser, html, "Tải và hiển thị")
+    Rel(browser, css, "Áp dụng kiểu giao diện")
+    Rel(browser, js, "Thực thi logic máy tính")
+    Rel(js, fb_auth, "Gửi yêu cầu login/register", "JS SDK")
+    Rel(js, fb_firestore, "Đồng bộ lịch sử theo thời gian thực", "JS SDK")
+```
+
 ### Level 3: Component Diagram (Focus: Math Engine)
 
 ```mermaid

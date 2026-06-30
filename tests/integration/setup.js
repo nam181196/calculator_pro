@@ -1,5 +1,5 @@
 /**
- * tests/unit/setup.js
+ * tests/integration/setup.js
  * ─────────────────────────────────────────────────────────────
  * Tạo môi trường JSDOM độc lập cho mỗi test.
  *

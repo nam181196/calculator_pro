@@ -1,0 +1,110 @@
+{
+    "_comment": "Generic Backend Spec-Driven Meta Config — dùng cho code reviewer / AI reviewer",
+    "project": {
+        "name": "AdCPC Metadata Service",
+        "version": "1.0.0",
+        "description": "AdCPC Metadata Service",
+        "maintainer": "AdTech Bigdata Team"
+    },
+    "doc_groups": {
+        "business": {
+            "type": "shared",
+            "docs": [
+                "docs/01_BUSINESS_REQUIREMENTS_v1.1.0_FINAL"
+            ],
+            "review_focus": [
+                "logic"
+            ],
+            "description": "Business context and high-level requirements"
+        },
+        "database": {
+            "type": "shared",
+            "docs": [
+                "docs/02_DATABASE_DESIGN_v1.0.0_FINAL.md"
+            ],
+            "review_focus": [
+                "logic"
+            ],
+            "description": "Database Design of AdCPC Metadata Service"
+        },
+        "architecture": {
+            "type": "shared",
+            "docs": [
+                "docs/03_SYSTEM_ARCHITECTURE_v1.1.0_FINAL.md"
+            ],
+            "review_focus": [
+                "convention",
+                "logic"
+            ],
+            "description": "System architecture, layering, module boundaries"
+        },
+        "type_feature": {
+            "type": "specified",
+            "docs": [
+                "docs/04_FUNCTIONAL_SPECIFICATION_v1.1.0_FINAL.md"
+            ],
+            "review_focus": [
+                "logic",
+                "security",
+                "convention"
+            ],
+            "description": "New feature implementation"
+        },
+        "type_fix": {
+            "type": "specified",
+            "docs": [],
+            "review_focus": [
+                "logic",
+                "security"
+            ],
+            "description": "Bug fixing"
+        },
+        "type_refactor": {
+            "type": "specified",
+            "docs": [],
+            "review_focus": [
+                "convention",
+                "logic"
+            ],
+            "description": "Code refactoring (no new feature)"
+        },
+        "type_docs": {
+            "type": "specified",
+            "docs": [],
+            "review_focus": [
+                "doc_mismatch"
+            ],
+            "description": "Documentation updates only"
+        }
+    },
+    "label_map": {
+        "type:feature": [
+            "type_feature"
+        ],
+        "type:fix": [
+            "type_fix"
+        ],
+        "type:refactor": [
+            "type_refactor"
+        ],
+        "type:docs": [
+            "type_docs"
+        ]
+    },
+    "default_scope_label": "type:feature",
+    "review_rules": {
+        "strict_mode": true,
+        "fail_on_missing_spec": false,
+        "fail_on_doc_mismatch": true
+    },
+    "loading_strategy": {
+        "shared_docs_always_loaded": true,
+        "specified_docs_by_label": true,
+        "max_docs_per_review": 10
+    },
+    "extensibility": {
+        "custom_review_focus": true,
+        "custom_doc_groups": true,
+        "custom_labels": true
+    }
+}

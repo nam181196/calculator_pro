@@ -8,6 +8,8 @@
 console.log("Scientific Calculator v2.1.2 loaded - Non-eager PEMDAS");
 
 import './js/api-mock.js';
+import { tokenize } from './js/engine.js';
+
 
 import { 
   updateDisplay, 
@@ -317,43 +319,36 @@ function handleFraction() {
   updateDisplay(state);
 }
 
-function hasFreeVariableX(expr) {
-  const cleanExpr = expr.toLowerCase().replace(/\s+/g, '');
-  let freeXFound = false;
-  let parenDepth = 0;
-  let functionParens = []; 
-  
-  for (let i = 0; i < cleanExpr.length; i++) {
-    const char = cleanExpr[i];
-    
-    if (cleanExpr.substring(i, i + 5) === 'd/dx(') {
-      functionParens.push(parenDepth + 1);
-      i += 4;
-      parenDepth++;
-      continue;
+function tokensContainFreeX(tokens) {
+  for (const token of tokens) {
+    if (token.type === 'VARIABLE' && token.value === 'x') {
+      return true;
     }
-    
-    if (char === '∫' && cleanExpr[i + 1] === '(') {
-      functionParens.push(parenDepth + 1);
-      i += 1;
-      parenDepth++;
-      continue;
-    }
-    
-    if (char === '(') {
-      parenDepth++;
-    } else if (char === ')') {
-      if (functionParens.length > 0 && functionParens[functionParens.length - 1] === parenDepth) {
-        functionParens.pop();
-      }
-      parenDepth = Math.max(0, parenDepth - 1);
-    } else if (char === 'x') {
-      if (functionParens.length === 0) {
-        freeXFound = true;
+    if (token.type === 'CALCULUS_FUNC') {
+      if (token.value === 'd/dx') {
+        if (token.subRPNs && token.subRPNs[1] && tokensContainFreeX(token.subRPNs[1])) {
+          return true;
+        }
+      } else if (token.value === '∫') {
+        if (token.subRPNs && (
+          (token.subRPNs[1] && tokensContainFreeX(token.subRPNs[1])) ||
+          (token.subRPNs[2] && tokensContainFreeX(token.subRPNs[2]))
+        )) {
+          return true;
+        }
       }
     }
   }
-  return freeXFound;
+  return false;
+}
+
+function hasFreeVariableX(expr) {
+  try {
+    const tokens = tokenize(expr);
+    return tokensContainFreeX(tokens);
+  } catch (e) {
+    return expr.toLowerCase().includes('x');
+  }
 }
 
 function handleUnaryCalculation(functionName) {
@@ -468,7 +463,12 @@ async function handleOperator(op) {
       state.waitingForSecond = true;
       state.operator = op;
     } else {
-      state.expression += '0 ' + op + ' ';
+      const endsWithOperand = /[\d\u03C0eXx\)\²\³\!\%]$/.test(state.expression.trim());
+      if (endsWithOperand) {
+        state.expression += ' ' + op + ' ';
+      } else {
+        state.expression += '0 ' + op + ' ';
+      }
       state.waitingForSecond = true;
       state.operator = op;
     }
@@ -1133,8 +1133,11 @@ if (elBtnSolve) {
           uiMsg = roots[0];
           histRes = roots[0];
         } else {
-          uiMsg = `x = ${roots[0]}\ny = ${roots[1]}`;
-          histRes = `x = ${roots[0]}, y = ${roots[1]}`;
+          // Chuẩn hóa loại bỏ tiền tố x = / y = nếu có trước khi xây dựng giao diện hiển thị
+          const xVal = roots[0].replace(/^x\s*=\s*/i, '');
+          const yVal = roots[1].replace(/^y\s*=\s*/i, '');
+          uiMsg = `x = ${xVal}\ny = ${yVal}`;
+          histRes = `x = ${xVal}, y = ${yVal}`;
         }
       }
       

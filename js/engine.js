@@ -223,8 +223,10 @@ function calculateFactorial(n) {
 export function tokenize(expr) {
   // Preprocess display/unicode symbols to standard math functions/operators
   expr = expr
-    .replace(/√/g, 'sqrt')
+    .replace(/ʸ√x/g, '__YROOT__')
     .replace(/³√/g, 'cbrt')
+    .replace(/√/g, 'sqrt')
+    .replace(/__YROOT__/g, 'ʸ√x')
     .replace(/π/g, 'pi')
     .replace(/²/g, '^2')
     .replace(/³/g, '^3')
@@ -461,7 +463,7 @@ export function shuntingYard(tokens) {
   const operatorStack = [];
   
   for (const token of tokens) {
-    if (token.type === 'NUMBER' || token.type === 'CONSTANT' || token.type === 'VARIABLE') {
+    if (token.type === 'NUMBER' || token.type === 'CONSTANT' || token.type === 'VARIABLE' || token.type === 'CALCULUS_FUNC') {
       outputQueue.push(token);
     } else if (token.type === 'FUNCTION') {
       operatorStack.push(token);
@@ -710,6 +712,25 @@ export function evaluateExpression(expr, angleUnit = 'DEG') {
  * Giải phương trình Solver (F-014).
  */
 export function solveEquation(coefficients, type) {
+  if (!Array.isArray(coefficients)) {
+    throw new Error('Hệ số gửi lên không phải là định dạng số hợp lệ');
+  }
+
+  const expectedLengths = {
+    linear: 2,
+    quadratic: 3,
+    system2: 6
+  };
+
+  const expectedLength = expectedLengths[type];
+  if (expectedLength === undefined) {
+    throw new Error('Loại phương trình không hỗ trợ');
+  }
+
+  if (coefficients.length !== expectedLength) {
+    throw new Error('Hệ số gửi lên không phải là định dạng số hợp lệ');
+  }
+
   for (const c of coefficients) {
     if (typeof c !== 'number' || isNaN(c) || !isFinite(c)) {
       throw new Error('Hệ số gửi lên không phải là định dạng số hợp lệ');
@@ -761,7 +782,7 @@ export function solveEquation(coefficients, type) {
     if (D !== 0) {
       const x = Dx / D;
       const y = Dy / D;
-      return [formatResult(x), formatResult(y)];
+      return ['x = ' + formatResult(x), 'y = ' + formatResult(y)];
     } else {
       if (Dx === 0 && Dy === 0) {
         return ['Vô số nghiệm'];
