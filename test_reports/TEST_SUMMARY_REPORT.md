@@ -135,6 +135,7 @@ xychart-beta
 *   **Chi tiết 111 ca kiểm thử tích hợp (Integration Test Cases):** [INTEGRATION_TEST_CASES.md](file:///Users/nam/Desktop/calculator/test_reports/INTEGRATION_TEST_CASES.md)
 *   **Chi tiết 40 ca kiểm thử đầu-cuối (E2E Test Cases):** [E2E_TEST_CASES.md](file:///Users/nam/Desktop/calculator/test_reports/E2E_TEST_CASES.md)
 *   **Ma trận đối chiếu & Rà soát tiêu chí nghiệm thu (AC Checklist):** [AC_CHECKLIST.md](file:///Users/nam/Desktop/calculator/test_reports/AC_CHECKLIST.md)
+*   **Hướng dẫn kiểm thử UAT dành cho Khách hàng (UAT Guide):** [UAT_GUIDE.md](file:///Users/nam/Desktop/calculator/test_reports/UAT_GUIDE.md)
 
 ---
 
